@@ -196,7 +196,7 @@ export default function Clients() {
             <option value="">All Plans</option>
             {PLANS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          y(search || filterAM || filterStatus || filterPlan) && (
+          {(search || filterAM || filterStatus || filterPlan) && (
             <button onClick={() => { setSearch(""); setFilterAM(""); setFilterStatus(""); setFilterPlan(""); }}
               style={{ background: "none", border: `1px solid ${T.border}`, color: T.textSec, padding: "0.65rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem" }}>
               Clear
@@ -208,9 +208,9 @@ export default function Clients() {
         {loading ? (
           <div style={{ textAlign: "center", color: T.textSec, padding: "4rem" }}>Loading clients…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", color: T.textMut, padding: "4rem", background: T.card, borderRadius: "12px", border: `1px solid ${T.border}` }}>
+          <div style={{ textAlign: "center", color:T.textMut, padding: "4rem", background: T.card, borderRadius: "12px", border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>◈</div>
-            <p>No clients found. {!clients.length && 'Click "+ Add Client" to get started.'}</p>
+            <p>No clients found. {!clients.length && 'Click "+" Add Client" to get started.'}</p>
           </div>
         ) : (
           <div style={{ background: T.card, borderRadius: "14px", border: `1px solid ${T.border}`, overflow: "hidden" }}>
@@ -310,7 +310,7 @@ export default function Clients() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: "0.72rem", color: T.textSec, fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Plan</label>
+                    <label style={{ fontSize: "0.72rem", color: T.textSec, fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.4rem" }}>Plan</label>
                     <select value={form.plan} onChange={e => setForm(f => ({...f, plan: e.target.value}))} style={inp}>
                       {PLANS.map(p => <option key={p}>{p}</option>)}
                     </select>
