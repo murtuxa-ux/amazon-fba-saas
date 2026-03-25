@@ -1,12 +1,16 @@
+/**
+ * Ecom Era FBA SaaS v6.0 — Decision Badge Component
+ */
 export default function DecisionBadge({ decision }) {
   const styles = {
-    BUY:    "bg-green-900 text-green-300 border border-green-700",
-    TEST:   "bg-yellow-900 text-yellow-300 border border-yellow-700",
-    REJECT: "bg-red-900 text-red-300 border border-red-700",
+    BUY: "bg-green-500/10 text-green-400 border-green-500/30",
+    TEST: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    REJECT: "bg-red-500/10 text-red-400 border-red-500/30",
   };
+  const key = (decision || "").toUpperCase();
   return (
-    <span className={`text-xs font-bold px-2 py-1 rounded ${styles[decision] || "bg-gray-800 text-gray-400"}`}>
-      {decision}
+    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[key] || "bg-gray-500/10 text-gray-400 border-gray-500/30"}`}>
+      {decision || "—"}
     </span>
   );
 }

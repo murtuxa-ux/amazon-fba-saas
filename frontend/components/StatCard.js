@@ -1,15 +1,19 @@
-export default function StatCard({ title, value, sub, color = "blue" }) {
-  const colors = {
-    blue:   "border-blue-500 text-blue-400",
-    green:  "border-green-500 text-green-400",
-    red:    "border-red-500 text-red-400",
-    yellow: "border-yellow-500 text-yellow-400",
+/**
+ * Ecom Era FBA SaaS v6.0 — Stat Card Component
+ */
+export default function StatCard({ title, value, color = "white" }) {
+  const colorMap = {
+    white: "text-white",
+    green: "text-green-400",
+    blue: "text-blue-400",
+    purple: "text-purple-400",
+    amber: "text-amber-400",
+    red: "text-red-400",
   };
   return (
-    <div className={`bg-gray-900 border-l-4 ${colors[color]} rounded-xl p-5`}>
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{title}</p>
-      <p className={`text-3xl font-bold ${colors[color]}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+    <div className="bg-[#12121e] border border-gray-800 rounded-xl p-4">
+      <p className="text-gray-400 text-xs uppercase tracking-wide">{title}</p>
+      <p className={`text-xl font-bold mt-1 ${colorMap[color] || colorMap.white}`}>{value}</p>
     </div>
   );
-      }
+}

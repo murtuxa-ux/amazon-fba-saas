@@ -1,63 +1,57 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+/**
+ * Ecom Era FBA SaaS v6.0 ‚Äî Leaderboard
+ * Manager rankings based on performance scoring
+ */
+import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
+import { leaderboardAPI } from "../lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const MEDAL = ["text-yellow-400", "text-gray-300", "text-amber-600"];
 
-const medals = ["ü•á", "ü•à", "ü•â"];
-
-export default function Leaderboard() {
-  const [board, setBoard] = useState([]);
+export default function LeaderboardPage() {
+  const [leaders, setLeaders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API}/leaderboard`).then(r => setBoard(r.data.leaderboard || [])).catch(() => {});
+    leaderboardAPI.get()
+      .then((res) => setLeaders(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-[#0a0a14]">
       <Sidebar />
-      <main className="flex-1 p-8">
-        <h2 className="text-2xl font-bold mb-1">Manager Leaderboard</h2>
-        <p className="text-gray-500 text-sm mb-6">
-          Score = (Approved x 2) + (Purchased x 5) + (Profitable Weeks x 10)
-        </p>
+      <main className="ml-60 p-6">
+        <h1 className="text-2xl font-bold text-white mb-1">Leaderboard</h1>
+        <p className="text-gray-400 text-sm mb-6">Manager rankings by performance</p>
 
-        {board.length === 0 ? (
-          <div className="bg-gray-900 rounded-xl p-8 text-center text-gray-600">
-            <p className="text-4xl mb-3">üèÜ</p>
-            <p>No data yet. Submit weekly reports to see rankings.</p>
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : leaders.length === 0 ? (
+          <div className="text-center py-20"><p className="text-gray-500">No leaderboard data yet</p></div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {board.map((m, i) => (
-              <div key={m.manager}
-                className={`rounded-xl p-5 border ${i === 0
-                  ? "border-yellow-600 bg-yellow-950"
-                  : "border-gray-800 bg-gray-900"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-2xl">{medals[i] || `#${i+1}`}</span>
-                  <span className="text-2xl font-black text-white">{m.score}</span>
+          <div className="space-y-3">
+            {leaders.map((l, i) => (
+              <div key={l.manager} className={`bg-[#12121e] border rounded-xl p-5 flex items-center gap-5 ${i === 0 ? "border-yellow-500/30" : "border-gray-800"}`}>
+                <div className={`text-3xl font-bold w-12 text-center ${MEDAL[i] || "text-gray-500"}`}>
+                  #{i + 1}
                 </div>
-                <p className="font-bold text-lg">{m.manager}</p>
-                <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
-                  <div className="bg-gray-800 rounded p-2">
-                    <p className="text-gray-500">Approved</p>
-                    <p className="font-bold text-white">{m.approved}</p>
-                  </div>
-                  <div className="bg-gray-800 rounded p-2">
-                    <p className="text-gray-500">Purchased</p>
-                    <p className="font-bold text-white">{m.purchased}</p>
-                  </div>
-                  <div className="bg-gray-800 rounded p-2">
-                    <p className="text-gray-500">Profitable</p>
-                    <p className="font-bold text-green-400">{m.profitable}</p>
+                <div className="flex-1">
+                  <p className="text-white font-semibold text-lg">{l.manager}</p>
+                  <div className="flex gap-6 mt-2 text-sm">
+                    <span className="text-gray-400">Approved: <span className="text-white">{l.total_approved || 0}</span></span>
+                    <span className="text-gray-400">Purchased: <span className="text-white">{l.total_purchased || 0}</span></span>
+                    <span className="text-gray-400">Revenue: <span className="text-green-400">${(l.total_revenue || 0).toLocaleString()}</span></span>
+                    <span className="text-gray-400">Profit: <span className="text-green-400">${(l.total_profit || 0).toLocaleString()}</span></span>
+                    <span className="text-gray-400">Weeks: <span className="text-white">{l.profitable_weeks || 0}</span></span>
                   </div>
                 </div>
-                <div className="flex justify-between mt-3 text-xs text-gray-500">
-                  <span>Revenue: <strong className="text-white">${m.revenue?.toLocaleString()}</strong></span>
-                  <span>Profit: <strong className="text-green-400">${m.profit?.toLocaleString()}</strong></span>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-purple-400">{l.score?.toFixed(0) || 0}</p>
+                  <p className="text-gray-500 text-xs">points</p>
                 </div>
               </div>
             ))}
@@ -65,5 +59,8 @@ export default function Leaderboard() {
         )}
       </main>
     </div>
-  );
+  
+  
+ËÔ»È’ºò-ä35RL–‹ò@’„œ‰©îcCd6Cs~'
+  }
 }
