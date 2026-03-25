@@ -2,13 +2,14 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 
 const links = [
-  { href: "/",            label: "Dashboard",    icon: "📊" },
-  { href: "/scout",       label: "FBA Scout",    icon: "🎯" },
-  { href: "/analyze",     label: "Analyze ASIN", icon: "🔍" },
-  { href: "/products",    label: "Products",     icon: "📦" },
-  { href: "/weekly",      label: "Weekly Report",icon: "📅" },
-  { href: "/leaderboard", label: "Leaderboard",  icon: "🏆" },
-  { href: "/suppliers",   label: "Suppliers",    icon: "🤝" },
+  { href: "/",           label: "Dashboard",    icon: "📊" },
+  { href: "/scout",      label: "FBA Scout",    icon: "🎯" },
+  { href: "/analyze",    label: "Analyze ASIN", icon: "🔍" },
+  { href: "/products",   label: "Products",     icon: "📦" },
+  { href: "/weekly",     label: "Weekly Report",icon: "📅" },
+  { href: "/leaderboard",label: "Leaderboard",  icon: "🏆" },
+  { href: "/suppliers",  label: "Suppliers",    icon: "🤝" },
+  { href: "/settings",   label: "Settings",     icon: "⚙️" },
 ];
 
 export default function Sidebar() {
@@ -41,4 +42,4 @@ export default function Sidebar() {
       </div>
     </aside>
   );
-}
+    }
