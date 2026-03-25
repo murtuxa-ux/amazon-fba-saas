@@ -1,316 +1,320 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import Sidebar from "../components/Sidebar";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-backend-production.up.railway.app";
 
-const VERDICT_STYLES = {
-  "Winner ✅": { row: "bg-green-950 border-green-800", badge: "bg-green-900 text-green-300 border border-green-600" },
-  "Maybe 🟡":  { row: "bg-yellow-950 border-yellow-800", badge: "bg-yellow-900 text-yellow-300 border border-yellow-600" },
-  "Skip ❌":   { row: "bg-red-950 border-red-900", badge: "bg-red-900 text-red-300 border border-red-700" },
+const VERDICT = {
+  Winner: { label: "Winner", bg: "#064e3b", color: "#6ee7b7", border: "#059669" },
+  Maybe:  { label: "Maybe",  bg: "#422006", color: "#fcd34d", border: "#d97706" },
+  Skip:   { label: "Skip",   bg: "#450a0a", color: "#fca5a5", border: "#b91c1c" },
 };
 
-const SCORE_LABELS = {
-  bsr:             { label: "BSR Rank",       max: 30 },
-  sales_velocity:  { label: "Sales Velocity", max: 20 },
-  price_stability: { label: "Price Stability",max: 20 },
-  competition:     { label: "Competition",    max: 20 },
-  price_point:     { label: "Price Point",    max: 10 },
-};
+const SCORE_COLS = [
+  { key: "bsr_score",         label: "BSR Rank",       max: 30 },
+  { key: "sales_score",       label: "Sales Velocity", max: 20 },
+  { key: "stability_score",   label: "Price Stability",max: 20 },
+  { key: "competition_score", label: "Competition",    max: 20 },
+  { key: "price_score",       label: "Price Point",    max: 10 },
+];
 
-const SIGNAL_COLORS = {
-  STRONG: "text-green-400", GOOD: "text-blue-400",
-  MODERATE: "text-yellow-400", WEAK: "text-red-400",
-};
-
-const Field = ({ label, name, value, onChange, type="text", placeholder="", required=false }) => (
-  <div>
-    <label className="block text-xs text-gray-400 mb-1">
-      {label}{required && <span className="text-red-400 ml-1">*</span>}
-    </label>
-    <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
-      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-  </div>
-);
-
-function ScoreBar({ score, max, signal }) {
-  const pct = Math.round((score / max) * 100);
-  const color = signal==="STRONG" ? "bg-green-500" : signal==="GOOD" ? "bg-blue-500" : signal==="MODERATE" ? "bg-yellow-500" : "bg-red-500";
+function ScoreRing({ score, size = 64 }) {
+  const r     = size / 2 - 5;
+  const circ  = 2 * Math.PI * r;
+  const pct   = Math.min(score / 100, 1);
+  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 bg-gray-800 rounded-full h-2">
-        <div className={`h-2 rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e293b" strokeWidth={5} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={5}
+        strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} strokeLinecap="round"
+        style={{ transform: "rotate(-90deg)", transformOrigin: size/2 + "px " + size/2 + "px" }} />
+      <text x={size/2} y={size/2 + 5} textAnchor="middle" fontSize={size * 0.22} fontWeight={800} fill={color}>{score}</text>
+    </svg>
+  );
+}
+
+function MiniBar({ value, max, color }) {
+  const pct = Math.min((value / max) * 100, 100);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "5px" }}>
+      <div style={{ flex: 1, background: "#0f172a", borderRadius: "4px", height: "6px", overflow: "hidden" }}>
+        <div style={{ width: pct + "%", background: color, height: "100%", borderRadius: "4px" }} />
       </div>
-      <span className="text-xs font-bold w-12 text-right">{score}/{max}</span>
+      <span style={{ fontSize: "0.7rem", color: "#64748b", minWidth: "28px", textAlign: "right" }}>{value}/{max}</span>
     </div>
   );
 }
 
-function ScoreGauge({ score }) {
-  const color = score >= 80 ? "#22c55e" : score >= 60 ? "#f59e0b" : "#ef4444";
-  const dashArray = (score / 100) * 188.5;
+function ResultCard({ item, idx }) {
+  const [expanded, setExpanded] = useState(false);
+  const v        = VERDICT[item.verdict] || VERDICT.Skip;
+  const barColor = item.fba_score >= 80 ? "#10b981" : item.fba_score >= 60 ? "#f59e0b" : "#ef4444";
+  const verdictEmoji = item.verdict === "Winner" ? "Winner ✅" : item.verdict === "Maybe" ? "Maybe 🟡" : "Skip ❌";
+
   return (
-    <div className="relative flex flex-col items-center">
-      <svg width="140" height="80" viewBox="0 0 140 80">
-        <path d="M 10 75 A 60 60 0 0 1 130 75" fill="none" stroke="#374151" strokeWidth="12" strokeLinecap="round"/>
-        <path d="M 10 75 A 60 60 0 0 1 130 75" fill="none" stroke={color} strokeWidth="12"
-          strokeLinecap="round" strokeDasharray={`${dashArray} 188.5`}/>
-      </svg>
-      <div className="absolute bottom-0 text-center">
-        <p className="text-3xl font-black" style={{ color }}>{score}</p>
-        <p className="text-xs text-gray-500">/ 100</p>
+    <div style={{ background: "#1e293b", borderRadius: "12px", border: "1px solid " + v.border, marginBottom: "0.75rem", overflow: "hidden" }}>
+      <div onClick={() => setExpanded(!expanded)}
+        style={{ display: "grid", gridTemplateColumns: "32px 70px 1fr 90px 100px 120px 24px", alignItems: "center", gap: "1rem", padding: "0.9rem 1.25rem", cursor: "pointer" }}>
+        <span style={{ fontWeight: 700, color: "#475569", fontSize: "0.85rem" }}>#{idx + 1}</span>
+        <ScoreRing score={item.fba_score} size={60} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, color: "#e2e8f0", fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {item.title || item.asin}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>
+            <a href={item.amazon_url} target="_blank" rel="noopener noreferrer"
+              style={{ color: "#818cf8", textDecoration: "none" }} onClick={e => e.stopPropagation()}>{item.asin}</a>
+            {item.brand && <span style={{ marginLeft: "0.6rem" }}>· {item.brand}</span>}
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontWeight: 700, color: "#e2e8f0" }}>${item.current_price != null ? item.current_price.toFixed(2) : "—"}</div>
+          <div style={{ fontSize: "0.7rem", color: "#64748b" }}>price</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontWeight: 700, color: "#e2e8f0" }}>#{(item.bsr || 0).toLocaleString()}</div>
+          <div style={{ fontSize: "0.7rem", color: "#64748b" }}>BSR</div>
+        </div>
+        <span style={{ background: v.bg, color: v.color, border: "1px solid " + v.border, borderRadius: "999px", padding: "3px 11px", fontSize: "0.78rem", fontWeight: 700, textAlign: "center" }}>
+          {verdictEmoji}
+        </span>
+        <span style={{ color: "#475569", fontSize: "0.9rem" }}>{expanded ? "▲" : "▼"}</span>
       </div>
+
+      {expanded && (
+        <div style={{ borderTop: "1px solid #334155", padding: "1.25rem 1.5rem", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1.5rem" }}>
+          <div>
+            <p style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Score Breakdown — {item.fba_score}/100</p>
+            {SCORE_COLS.map(col => (
+              <div key={col.key} style={{ marginBottom: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "#94a3b8", marginBottom: "3px" }}>
+                  <span>{col.label}</span>
+                </div>
+                <MiniBar value={item[col.key] || 0} max={col.max} color={barColor} />
+              </div>
+            ))}
+          </div>
+          <div>
+            <p style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Product Metrics</p>
+            {[
+              ["Monthly Sales",    "~" + ((item.monthly_sales || 0).toLocaleString()) + " units"],
+              ["FBA Sellers",      item.fba_sellers != null ? item.fba_sellers : "—"],
+              ["Total Sellers",    item.total_sellers != null ? item.total_sellers : "—"],
+              ["Reviews",          (item.reviews || 0).toLocaleString()],
+              ["Rating",           item.rating ? item.rating + " ⭐" : "—"],
+              ["Price Volatility", item.price_volatility_pct != null ? item.price_volatility_pct + "%" : "—"],
+              ["90d Avg",          item.avg_price_90d ? "$" + item.avg_price_90d : "—"],
+              ["90d Low / High",   (item.min_price_90d && item.max_price_90d) ? "$" + item.min_price_90d + " / $" + item.max_price_90d : "—"],
+            ].map(([lbl, val]) => (
+              <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #0f172a", fontSize: "0.83rem" }}>
+                <span style={{ color: "#64748b" }}>{lbl}</span>
+                <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <p style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Profit Snapshot</p>
+            {item.profit_calc && item.profit_calc.breakeven_cost_25pct != null && (
+              <div style={{ background: "#0c2340", border: "1px solid #1d4ed8", borderRadius: "8px", padding: "0.7rem", marginBottom: "0.75rem", fontSize: "0.85rem", color: "#93c5fd" }}>
+                Source below <strong style={{ color: "#60a5fa" }}>${item.profit_calc.breakeven_cost_25pct}</strong> for 25% margin
+              </div>
+            )}
+            {item.profit_calc && item.profit_calc.net_profit != null ? (
+              [
+                ["Sell Price",     "$" + (item.current_price || 0).toFixed(2)],
+                ["Net Profit",     "$" + item.profit_calc.net_profit.toFixed(2)],
+                ["Margin",         item.profit_calc.margin_pct.toFixed(1) + "%"],
+                ["ROI",            item.profit_calc.roi_pct.toFixed(1) + "%"],
+                ["Monthly Profit", "~$" + Math.round((item.profit_calc.net_profit || 0) * (item.monthly_sales || 0)).toLocaleString()],
+              ].map(([lbl, val]) => (
+                <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #0f172a", fontSize: "0.83rem" }}>
+                  <span style={{ color: "#64748b" }}>{lbl}</span>
+                  <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{val}</span>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: "#475569", fontSize: "0.82rem" }}>Enter a cost per unit to see full profit breakdown.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function Scout() {
-  const [form, setForm] = useState({
-    asin:"", title:"", brand:"", category:"",
-    bsr:"", monthly_sales:"", current_price:"",
-    avg_price_90d:"", min_price_90d:"", max_price_90d:"",
-    price_volatility_pct:"", fba_sellers:"", total_sellers:"",
-    reviews:"", rating:"", cost:"", referral_pct:"0.15", fba_fee:"3.22",
-  });
-  const [result, setResult] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [tab, setTab] = useState("form");
+  const [asinsInput, setAsinsInput] = useState("");
+  const [costInput,  setCostInput]  = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [progress,   setProgress]   = useState("");
+  const [results,    setResults]    = useState([]);
+  const [errors,     setErrors]     = useState([]);
+  const [hasKey,     setHasKey]     = useState(false);
+  const [tab,        setTab]        = useState("scout");
+  const [history,    setHistory]    = useState([]);
 
   useEffect(() => {
-    axios.get(`${API}/scout`).then(r => setHistory(r.data.results || [])).catch(() => {});
+    const key = localStorage.getItem("keepa_api_key") || "";
+    setHasKey(!!key);
   }, []);
 
-  const handle = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const asinList = asinsInput
+    .split(/[\n,\s]+/)
+    .map(a => a.trim().toUpperCase())
+    .filter(a => a.length >= 8 && a.length <= 12 && /^[A-Z0-9]+$/.test(a));
+  const uniqueAsins = [...new Set(asinList)];
 
-  const submit = async () => {
-    const required = ["asin","bsr","monthly_sales","current_price","price_volatility_pct","fba_sellers"];
-    const missing = required.filter(k => !form[k]);
-    if (missing.length) { setError(`Please fill: ${missing.join(", ")}`); return; }
-    setError(""); setLoading(true);
+  async function handleScout() {
+    if (uniqueAsins.length === 0) return;
+    const apiKey = localStorage.getItem("keepa_api_key") || "";
+    if (!apiKey) { alert("No Keepa API key found. Go to Settings and add your key first."); return; }
+    setLoading(true);
+    setResults([]);
+    setErrors([]);
+    setProgress("Fetching Keepa data for " + uniqueAsins.length + " ASIN" + (uniqueAsins.length > 1 ? "s" : "") + "...");
     try {
-      const payload = {
-        asin: form.asin.trim().toUpperCase(),
-        title: form.title, brand: form.brand, category: form.category,
-        bsr: parseInt(form.bsr), monthly_sales: parseInt(form.monthly_sales),
-        current_price: parseFloat(form.current_price),
-        price_volatility_pct: parseFloat(form.price_volatility_pct),
-        fba_sellers: parseInt(form.fba_sellers),
-        ...(form.avg_price_90d  && { avg_price_90d:  parseFloat(form.avg_price_90d) }),
-        ...(form.min_price_90d  && { min_price_90d:  parseFloat(form.min_price_90d) }),
-        ...(form.max_price_90d  && { max_price_90d:  parseFloat(form.max_price_90d) }),
-        ...(form.total_sellers  && { total_sellers:  parseInt(form.total_sellers) }),
-        ...(form.reviews        && { reviews:        parseInt(form.reviews) }),
-        ...(form.rating         && { rating:         parseFloat(form.rating) }),
-        ...(form.cost           && { cost:           parseFloat(form.cost) }),
-        referral_pct: parseFloat(form.referral_pct) || 0.15,
-        fba_fee:      parseFloat(form.fba_fee)      || 3.22,
-      };
-      const res = await axios.post(`${API}/scout`, payload);
-      setResult(res.data);
-      setHistory(prev => [res.data, ...prev.filter(h => h.asin !== res.data.asin)]);
-    } catch { setError("Could not reach backend."); }
-    setLoading(false);
-  };
+      const payload = { asins: uniqueAsins, keepa_api_key: apiKey, ...(costInput ? { cost_per_unit: parseFloat(costInput) } : {}) };
+      const resp = await fetch(API_URL + "/scout/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || "Server error " + resp.status); }
+      const data = await resp.json();
+      setResults(data.results || []);
+      setErrors(data.error_details || []);
+      setProgress("Done — " + data.processed + " product" + (data.processed !== 1 ? "s" : "") + " scored" + (data.errors > 0 ? ", " + data.errors + " failed" : "") + ".");
+    } catch (e) {
+      setProgress("");
+      alert("Scout failed: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const vStyle = result ? (VERDICT_STYLES[result.verdict] || VERDICT_STYLES["Skip ❌"]) : null;
+  async function loadHistory() {
+    try {
+      const resp = await fetch(API_URL + "/scout");
+      const data = await resp.json();
+      setHistory(data.results || []);
+    } catch (_) {}
+  }
+
+  function switchTab(t) { setTab(t); if (t === "history") loadHistory(); }
+
+  const winners = results.filter(r => r.verdict === "Winner").length;
+  const maybes  = results.filter(r => r.verdict === "Maybe").length;
+  const skips   = results.filter(r => r.verdict === "Skip").length;
 
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: "flex", minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "system-ui, sans-serif" }}>
       <Sidebar />
-      <main className="flex-1 p-8">
-        <h2 className="text-2xl font-bold mb-1">FBA Scout</h2>
-        <p className="text-gray-500 text-sm mb-6">Score products 0–100 for wholesale FBA viability · Winner / Maybe / Skip</p>
+      <main style={{ flex: 1, padding: "2rem" }}>
+        <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: "0.25rem" }}>🎯 FBA Scout</h1>
+        <p style={{ color: "#94a3b8", marginBottom: "1.5rem" }}>Paste up to 50 ASINs — Scout fetches live Keepa data and ranks them by FBA viability automatically.</p>
 
-        <div className="flex gap-2 mb-6">
-          {["form","history"].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition capitalize
-                ${tab===t ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>
-              {t==="form" ? "🎯 Scout a Product" : `📋 History (${history.length})`}
+        {!hasKey && (
+          <div style={{ background: "#422006", border: "1px solid #d97706", borderRadius: "10px", padding: "0.85rem 1.25rem", marginBottom: "1.5rem", fontSize: "0.9rem", color: "#fde68a" }}>
+            ⚠️ No Keepa API key saved.{" "}
+            <a href="/settings" style={{ color: "#fbbf24", fontWeight: 700, textDecoration: "underline" }}>Go to Settings</a>{" "}
+            to add your key before scouting.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #1e293b" }}>
+          {[{ id: "scout", label: "🔍 Bulk Scout" }, { id: "history", label: "📋 History" }].map(t => (
+            <button key={t.id} onClick={() => switchTab(t.id)}
+              style={{ background: tab === t.id ? "#1e293b" : "transparent", color: tab === t.id ? "#e2e8f0" : "#64748b", border: "none", borderBottom: tab === t.id ? "2px solid #6366f1" : "2px solid transparent", padding: "0.6rem 1.25rem", cursor: "pointer", fontWeight: tab === t.id ? 700 : 400, fontSize: "0.9rem", borderRadius: "8px 8px 0 0" }}>
+              {t.label}
             </button>
           ))}
         </div>
 
-        {tab === "form" && (
-          <div className="max-w-4xl">
-            <div className="bg-gray-900 rounded-xl p-6 mb-6">
-              <h3 className="text-sm font-semibold text-gray-300 mb-4">Required Fields</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Field label="ASIN"                         name="asin"                 value={form.asin}                 onChange={handle} placeholder="B0CYT8BT8M" required />
-                <Field label="Brand"                        name="brand"                value={form.brand}                onChange={handle} placeholder="Sky and Sol" />
-                <Field label="BSR"                          name="bsr"                  value={form.bsr}                  onChange={handle} type="number" placeholder="768" required />
-                <Field label="Est. Monthly Sales (units)"   name="monthly_sales"        value={form.monthly_sales}        onChange={handle} type="number" placeholder="6000" required />
-                <Field label="Current Price ($)"            name="current_price"        value={form.current_price}        onChange={handle} type="number" placeholder="34.95" required />
-                <Field label="Price Volatility 90d (%)"     name="price_volatility_pct" value={form.price_volatility_pct} onChange={handle} type="number" placeholder="14.3" required />
-                <Field label="Active FBA Sellers"           name="fba_sellers"          value={form.fba_sellers}          onChange={handle} type="number" placeholder="3" required />
-                <Field label="Total Sellers"                name="total_sellers"        value={form.total_sellers}        onChange={handle} type="number" placeholder="5" />
-              </div>
-
-              <details className="mb-4">
-                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-300 mb-2">▶ Optional — price history, reviews, title</summary>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <Field label="Title"           name="title"        value={form.title}        onChange={handle} placeholder="Product name..." />
-                  <Field label="Category"        name="category"     value={form.category}     onChange={handle} placeholder="Beauty > Skin Care" />
-                  <Field label="Avg Price 90d ($)" name="avg_price_90d" value={form.avg_price_90d} onChange={handle} type="number" placeholder="34.91" />
-                  <Field label="Min Price 90d ($)" name="min_price_90d" value={form.min_price_90d} onChange={handle} type="number" placeholder="30.00" />
-                  <Field label="Max Price 90d ($)" name="max_price_90d" value={form.max_price_90d} onChange={handle} type="number" placeholder="34.95" />
-                  <Field label="Reviews"         name="reviews"      value={form.reviews}      onChange={handle} type="number" placeholder="2377" />
-                  <Field label="Rating"          name="rating"       value={form.rating}       onChange={handle} type="number" placeholder="4.2" />
+        {tab === "scout" && (
+          <>
+            <div style={{ background: "#1e293b", borderRadius: "12px", padding: "1.5rem", border: "1px solid #334155", marginBottom: "1.5rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: "1.25rem", alignItems: "start" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
+                    ASINs — one per line or comma-separated (max 50)
+                  </label>
+                  <textarea value={asinsInput} onChange={e => setAsinsInput(e.target.value)}
+                    placeholder={"B0CYT8BT8M\nB001234567\n..."} rows={7}
+                    style={{ width: "100%", padding: "0.75rem", background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", color: "#e2e8f0", fontSize: "0.9rem", fontFamily: "monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                  {uniqueAsins.length > 0 && (
+                    <p style={{ fontSize: "0.78rem", marginTop: "4px", color: uniqueAsins.length > 50 ? "#f87171" : "#6366f1" }}>
+                      {uniqueAsins.length} unique ASIN{uniqueAsins.length > 1 ? "s" : ""} detected
+                      {uniqueAsins.length > 50 && " — please reduce to 50 or fewer"}
+                    </p>
+                  )}
                 </div>
-              </details>
-
-              <div className="border-t border-gray-800 pt-4">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">Profit Calculator <span className="text-gray-600">(enter your cost)</span></h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <Field label="Wholesale Cost ($)"     name="cost"         value={form.cost}         onChange={handle} type="number" placeholder="17.00" />
-                  <Field label="Referral Fee %"         name="referral_pct" value={form.referral_pct} onChange={handle} type="number" placeholder="0.15" />
-                  <Field label="FBA Fulfillment Fee ($)" name="fba_fee"      value={form.fba_fee}      onChange={handle} type="number" placeholder="3.22" />
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.75rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Cost / Unit (optional)</label>
+                    <input type="number" value={costInput} onChange={e => setCostInput(e.target.value)} placeholder="e.g. 12.50" step="0.01" min="0"
+                      style={{ width: "100%", padding: "0.75rem", background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", color: "#e2e8f0", fontSize: "0.9rem", outline: "none", boxSizing: "border-box" }} />
+                    <p style={{ fontSize: "0.72rem", color: "#475569", marginTop: "4px" }}>Enter wholesale cost for profit analysis</p>
+                  </div>
+                  <button onClick={handleScout} disabled={loading || uniqueAsins.length === 0 || uniqueAsins.length > 50}
+                    style={{ padding: "0.9rem", background: (!loading && uniqueAsins.length > 0 && uniqueAsins.length <= 50) ? "#6366f1" : "#1e293b", color: (!loading && uniqueAsins.length > 0 && uniqueAsins.length <= 50) ? "#fff" : "#475569", border: "none", borderRadius: "10px", fontWeight: 700, fontSize: "1rem", cursor: (!loading && uniqueAsins.length > 0 && uniqueAsins.length <= 50) ? "pointer" : "not-allowed" }}>
+                    {loading ? "Scouting…" : uniqueAsins.length > 0 ? "🚀 Scout " + uniqueAsins.length + " ASIN" + (uniqueAsins.length > 1 ? "s" : "") : "🚀 Scout ASINs"}
+                  </button>
+                  <p style={{ fontSize: "0.75rem", color: "#475569", lineHeight: 1.6 }}>
+                    Powered by <a href="https://keepa.com" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1" }}>Keepa API</a>.
+                    Set your key in <a href="/settings" style={{ color: "#6366f1" }}>Settings</a>.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <button onClick={submit} disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition mb-8">
-              {loading ? "Scoring…" : "🎯 Run FBA Scout"}
-            </button>
-
-            {result && vStyle && (
-              <div className={`rounded-xl border p-6 ${vStyle.row}`}>
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <p className="text-xs text-gray-400 font-mono mb-1">{result.asin}</p>
-                    <p className="font-bold text-lg leading-tight max-w-xl">{result.title || result.brand || result.asin}</p>
-                    {result.category && <p className="text-xs text-gray-500 mt-1">{result.category}</p>}
-                  </div>
-                  <span className={`text-sm font-bold px-4 py-2 rounded-xl ml-4 flex-shrink-0 ${vStyle.badge}`}>{result.verdict}</span>
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                  <div>
-                    <div className="flex items-center gap-6 mb-6">
-                      <ScoreGauge score={result.fba_score} />
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">FBA SCORE</p>
-                        <p className="text-4xl font-black">{result.fba_score}<span className="text-lg text-gray-500">/100</span></p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      {Object.entries(result.score_breakdown).map(([key, val]) => (
-                        <div key={key}>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-gray-400">{SCORE_LABELS[key]?.label || key}</span>
-                            <span className={SIGNAL_COLORS[val.signal] || "text-gray-400"}>{val.signal}</span>
-                          </div>
-                          <ScoreBar score={val.score} max={val.max} signal={val.signal} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Market Data</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { l:"BSR",           v:`#${result.bsr?.toLocaleString()}` },
-                          { l:"Monthly Sales", v:`${result.monthly_sales?.toLocaleString()} units` },
-                          { l:"Buy Box Price", v:`$${result.current_price}` },
-                          { l:"FBA Sellers",   v:result.fba_sellers },
-                          { l:"Reviews",       v:result.reviews ? result.reviews.toLocaleString() : "—" },
-                          { l:"Rating",        v:result.rating ? `${result.rating} ★` : "—" },
-                          { l:"90d Volatility",v:`${result.price_volatility_pct}%` },
-                          { l:"Price Range",   v:result.min_price_90d && result.max_price_90d ? `$${result.min_price_90d}–$${result.max_price_90d}` : "—" },
-                        ].map(({ l, v }) => (
-                          <div key={l} className="bg-black bg-opacity-30 rounded-lg p-2">
-                            <p className="text-xs text-gray-500">{l}</p>
-                            <p className="text-sm font-bold">{v}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {result.profit_calc && (
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Profit Calculator</p>
-                        <div className="bg-black bg-opacity-30 rounded-lg p-4 space-y-2">
-                          {result.profit_calc.net_profit !== undefined && (
-                            <>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Referral Fee</span>
-                                <span>-${result.profit_calc.referral_fee}</span>
-                              </div>
-                              <div className="flex justify-between text-sm border-t border-gray-700 pt-2 font-bold">
-                                <span className="text-gray-400">Net Profit</span>
-                                <span className={result.profit_calc.net_profit >= 0 ? "text-green-400" : "text-red-400"}>
-                                  ${result.profit_calc.net_profit}
-                                </span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Margin</span>
-                                <span className={result.profit_calc.margin_pct >= 25 ? "text-green-400" : result.profit_calc.margin_pct >= 10 ? "text-yellow-400" : "text-red-400"}>
-                                  {result.profit_calc.margin_pct}%
-                                </span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">ROI</span>
-                                <span>{result.profit_calc.roi_pct}%</span>
-                              </div>
-                            </>
-                          )}
-                          <div className="border-t border-gray-700 pt-2 flex justify-between text-xs">
-                            <span className="text-gray-500">Max cost for 25% margin</span>
-                            <span className="font-bold text-blue-400">${result.profit_calc.breakeven_cost_25pct}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <a href={result.amazon_url} target="_blank" rel="noreferrer"
-                      className="inline-block text-xs text-blue-400 hover:underline">View on Amazon →</a>
-                  </div>
-                </div>
+            {(loading || progress) && (
+              <div style={{ background: "#0c2340", border: "1px solid #1d4ed8", borderRadius: "8px", padding: "0.85rem 1.25rem", marginBottom: "1.5rem", color: "#93c5fd", fontSize: "0.9rem" }}>
+                {loading && "⏳ "}{progress}
               </div>
             )}
-          </div>
+
+            {results.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+                {[
+                  { label: "Scouted",    val: results.length, color: "#818cf8" },
+                  { label: "Winners ✅", val: winners,         color: "#10b981" },
+                  { label: "Maybe 🟡",   val: maybes,          color: "#f59e0b" },
+                  { label: "Skip ❌",    val: skips,           color: "#ef4444" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "#1e293b", borderRadius: "10px", padding: "1rem", border: "1px solid #334155", textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 800, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {results.map((item, i) => <ResultCard key={item.asin} item={item} idx={i} />)}
+
+            {errors.length > 0 && (
+              <div style={{ background: "#1e293b", borderRadius: "10px", padding: "1rem 1.25rem", border: "1px solid #7f1d1d", marginTop: "0.75rem" }}>
+                <h4 style={{ color: "#fca5a5", fontSize: "0.88rem", marginBottom: "0.5rem" }}>
+                  ⚠️ {errors.length} ASIN{errors.length > 1 ? "s" : ""} could not be fetched
+                </h4>
+                {errors.map(e => (
+                  <div key={e.asin} style={{ fontSize: "0.8rem", color: "#94a3b8", padding: "3px 0" }}>
+                    <span style={{ color: "#f87171", fontWeight: 600 }}>{e.asin}</span>: {e.error}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {tab === "history" && (
           <div>
             {history.length === 0 ? (
-              <div className="bg-gray-900 rounded-xl p-8 text-center text-gray-600">
-                <p className="text-4xl mb-3">🎯</p>
-                <p>No products scouted yet. Use the Scout form to get started.</p>
+              <div style={{ textAlign: "center", color: "#475569", padding: "4rem 2rem" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🎯</div>
+                <p>No products scouted yet. Use the Bulk Scout tab to get started.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {history.map((h, i) => {
-                  const vs = VERDICT_STYLES[h.verdict] || VERDICT_STYLES["Skip ❌"];
-                  return (
-                    <div key={i} className={`rounded-xl border p-4 flex items-center justify-between gap-4 ${vs.row}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-xs text-gray-400">{h.asin}</p>
-                        <p className="font-semibold text-sm truncate">{h.title || h.brand || h.asin}</p>
-                        <p className="text-xs text-gray-500 mt-1">BSR #{h.bsr?.toLocaleString()} · {h.monthly_sales?.toLocaleString()} units/mo · ${h.current_price}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-black">{h.fba_score}</p>
-                          <p className="text-xs text-gray-500">score</p>
-                        </div>
-                        <span className={`text-xs font-bold px-3 py-1.5 rounded-lg ${vs.badge}`}>{h.verdict}</span>
-                        <a href={h.amazon_url} target="_blank" rel="noreferrer"
-                          className="text-xs text-blue-400 hover:underline whitespace-nowrap">View →</a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              history.map((item, i) => <ResultCard key={"h-" + item.asin + "-" + i} item={item} idx={i} />)
             )}
           </div>
         )}
       </main>
     </div>
   );
-  }
+    }
