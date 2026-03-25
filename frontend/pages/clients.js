@@ -210,7 +210,7 @@ export default function Clients() {
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: T.textMut, padding: "4rem", background: T.card, borderRadius: "12px", border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>◈</div>
-            <p>No clients found. {!clients.length && "Click "+ Add Client" to get started."}</p>
+            <p>No clients found. {!clients.length && 'Click "+ Add Client" to get started.'}</p>
           </div>
         ) : (
           <div style={{ background: T.card, borderRadius: "14px", border: `1px solid ${T.border}`, overflow: "hidden" }}>
@@ -310,7 +310,7 @@ export default function Clients() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: "0.72rem", color: T.textSec, fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.4rem" }}>Plan</label>
+                    <label style={{ fontSize: "0.72rem", color: T.textSec, fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Plan</label>
                     <select value={form.plan} onChange={e => setForm(f => ({...f, plan: e.target.value}))} style={inp}>
                       {PLANS.map(p => <option key={p}>{p}</option>)}
                     </select>
