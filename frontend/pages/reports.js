@@ -55,8 +55,8 @@ export default function Reports() {
         fetch(`${API_URL}/users`,   { headers: authHeader() }),
         fetch(`${API_URL}/clients`, { headers: authHeader() }),
       ]);
-      const u = await uRes.json(); setManagers(u || []);
-      const c = await cRes.json(); setClients(c.clients || []);
+      const u = await uRes.json(); setManagers(Array.isArray(u) ? u : []);
+      const c = await cRes.json(); setClients(Array.isArray(c.clients) ? c.clients : []);
     } catch (_) {}
   }
 
