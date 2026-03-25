@@ -1,20 +1,21 @@
 import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-backend-production.up.railway.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-saas-production.up.railway.app";
 
 const VERDICT = {
-  Winner: { label: "Winner", bg: "#064e3b", color: "#6ee7b7", border: "#059669" },
-  Maybe:  { label: "Maybe",  bg: "#422006", color: "#fcd34d", border: "#d97706" },
-  Skip:   { label: "Skip",   bg: "#450a0a", color: "#fca5a5", border: "#b91c1c" },
+  Winner: { label: "Winner ✅", bg: "#064e3b", color: "#6ee7b7", border: "#059669" },
+  Maybe:  { label: "Maybe 🟡",  bg: "#422006", color: "#fcd34d", border: "#d97706" },
+  Skip:   { label: "Skip ❌",   bg: "#450a0a", color: "#fca5a5", border: "#b91c1c" },
 };
 
+// Keys match the score_breakdown object returned by the backend
 const SCORE_COLS = [
-  { key: "bsr_score",         label: "BSR Rank",       max: 30 },
-  { key: "sales_score",       label: "Sales Velocity", max: 20 },
-  { key: "stability_score",   label: "Price Stability",max: 20 },
-  { key: "competition_score", label: "Competition",    max: 20 },
-  { key: "price_score",       label: "Price Point",    max: 10 },
+  { key: "bsr",             label: "BSR Rank",       max: 30 },
+  { key: "sales_velocity",  label: "Sales Velocity", max: 20 },
+  { key: "price_stability", label: "Price Stability",max: 20 },
+  { key: "competition",     label: "Competition",    max: 20 },
+  { key: "price_point",     label: "Price Point",    max: 10 },
 ];
 
 function ScoreRing({ score, size = 64 }) {
@@ -49,12 +50,12 @@ function ResultCard({ item, idx }) {
   const [expanded, setExpanded] = useState(false);
   const v        = VERDICT[item.verdict] || VERDICT.Skip;
   const barColor = item.fba_score >= 80 ? "#10b981" : item.fba_score >= 60 ? "#f59e0b" : "#ef4444";
-  const verdictEmoji = item.verdict === "Winner" ? "Winner ✅" : item.verdict === "Maybe" ? "Maybe 🟡" : "Skip ❌";
+  const sb       = item.score_breakdown || {};
 
   return (
     <div style={{ background: "#1e293b", borderRadius: "12px", border: "1px solid " + v.border, marginBottom: "0.75rem", overflow: "hidden" }}>
       <div onClick={() => setExpanded(!expanded)}
-        style={{ display: "grid", gridTemplateColumns: "32px 70px 1fr 90px 100px 120px 24px", alignItems: "center", gap: "1rem", padding: "0.9rem 1.25rem", cursor: "pointer" }}>
+        style={{ display: "grid", gridTemplateColumns: "32px 70px 1fr 90px 100px 130px 24px", alignItems: "center", gap: "1rem", padding: "0.9rem 1.25rem", cursor: "pointer" }}>
         <span style={{ fontWeight: 700, color: "#475569", fontSize: "0.85rem" }}>#{idx + 1}</span>
         <ScoreRing score={item.fba_score} size={60} />
         <div style={{ minWidth: 0 }}>
@@ -76,7 +77,7 @@ function ResultCard({ item, idx }) {
           <div style={{ fontSize: "0.7rem", color: "#64748b" }}>BSR</div>
         </div>
         <span style={{ background: v.bg, color: v.color, border: "1px solid " + v.border, borderRadius: "999px", padding: "3px 11px", fontSize: "0.78rem", fontWeight: 700, textAlign: "center" }}>
-          {verdictEmoji}
+          {v.label}
         </span>
         <span style={{ color: "#475569", fontSize: "0.9rem" }}>{expanded ? "▲" : "▼"}</span>
       </div>
@@ -85,19 +86,24 @@ function ResultCard({ item, idx }) {
         <div style={{ borderTop: "1px solid #334155", padding: "1.25rem 1.5rem", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1.5rem" }}>
           <div>
             <p style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Score Breakdown — {item.fba_score}/100</p>
-            {SCORE_COLS.map(col => (
-              <div key={col.key} style={{ marginBottom: "8px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "#94a3b8", marginBottom: "3px" }}>
-                  <span>{col.label}</span>
+            {SCORE_COLS.map(col => {
+              const val = sb[col.key]?.score ?? 0;
+              const sig = sb[col.key]?.signal || "";
+              return (
+                <div key={col.key} style={{ marginBottom: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "#94a3b8", marginBottom: "3px" }}>
+                    <span>{col.label}</span>
+                    <span style={{ color: sig === "STRONG" ? "#10b981" : sig === "GOOD" ? "#60a5fa" : sig === "MODERATE" ? "#f59e0b" : "#ef4444", fontSize: "0.7rem" }}>{sig}</span>
+                  </div>
+                  <MiniBar value={val} max={col.max} color={barColor} />
                 </div>
-                <MiniBar value={item[col.key] || 0} max={col.max} color={barColor} />
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div>
             <p style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Product Metrics</p>
             {[
-              ["Monthly Sales",    "~" + ((item.monthly_sales || 0).toLocaleString()) + " units"],
+              ["Monthly Sales",    "~" + (item.monthly_sales || 0).toLocaleString() + " units"],
               ["FBA Sellers",      item.fba_sellers != null ? item.fba_sellers : "—"],
               ["Total Sellers",    item.total_sellers != null ? item.total_sellers : "—"],
               ["Reviews",          (item.reviews || 0).toLocaleString()],
@@ -133,7 +139,7 @@ function ResultCard({ item, idx }) {
                 </div>
               ))
             ) : (
-              <p style={{ color: "#475569", fontSize: "0.82rem" }}>Enter a cost per unit to see full profit breakdown.</p>
+              <p style={{ color: "#475569", fontSize: "0.82rem" }}>Enter a cost per unit in the scout form to see full profit breakdown.</p>
             )}
           </div>
         </div>
@@ -239,8 +245,7 @@ export default function Scout() {
                     style={{ width: "100%", padding: "0.75rem", background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", color: "#e2e8f0", fontSize: "0.9rem", fontFamily: "monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                   {uniqueAsins.length > 0 && (
                     <p style={{ fontSize: "0.78rem", marginTop: "4px", color: uniqueAsins.length > 50 ? "#f87171" : "#6366f1" }}>
-                      {uniqueAsins.length} unique ASIN{uniqueAsins.length > 1 ? "s" : ""} detected
-                      {uniqueAsins.length > 50 && " — please reduce to 50 or fewer"}
+                      {uniqueAsins.length} unique ASIN{uniqueAsins.length > 1 ? "s" : ""} detected{uniqueAsins.length > 50 && " — reduce to 50 or fewer"}
                     </p>
                   )}
                 </div>
@@ -256,8 +261,7 @@ export default function Scout() {
                     {loading ? "Scouting…" : uniqueAsins.length > 0 ? "🚀 Scout " + uniqueAsins.length + " ASIN" + (uniqueAsins.length > 1 ? "s" : "") : "🚀 Scout ASINs"}
                   </button>
                   <p style={{ fontSize: "0.75rem", color: "#475569", lineHeight: 1.6 }}>
-                    Powered by <a href="https://keepa.com" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1" }}>Keepa API</a>.
-                    Set your key in <a href="/settings" style={{ color: "#6366f1" }}>Settings</a>.
+                    Powered by <a href="https://keepa.com" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1" }}>Keepa API</a>. Set your key in <a href="/settings" style={{ color: "#6366f1" }}>Settings</a>.
                   </p>
                 </div>
               </div>
