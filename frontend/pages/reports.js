@@ -183,8 +183,8 @@ export default function Reports() {
           <>
             {/* KPI Summary */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.75rem" }}>
-              <StatBox label="Total Revenue"   value={`$${data.total_revenue.toLocaleString()}`} color={T.yellow} />
-              <StatBox label="Total Profit"    value={`$${data.total_profit.toLocaleString()}`}  color={T.green}  />
+              <StatBox label="Total Revenue"   value={`$${(data.total_revenue || 0).toLocaleString()}`} color={T.yellow} />
+              <StatBox label="Total Profit"    value={`$${(data.total_profit || 0).toLocaleString()}`}  color={T.green}  />
               <StatBox label="Avg ROI"         value={`${data.avg_roi_pct}%`}                    color={T.blue}   />
               <StatBox label="Products Scouted" value={data.scouts_count} sub={`${data.weeks_count} weeks reported`} color={T.purple} />
             </div>
@@ -255,8 +255,8 @@ export default function Reports() {
                       {data.manager_summary.sort((a, b) => b.revenue - a.revenue).map((m, i) => (
                         <tr key={i} style={{ borderBottom: i < data.manager_summary.length - 1 ? `1px solid ${T.border}` : "none" }}>
                           <td style={{ padding: "0.8rem 1rem", fontWeight: 600 }}>{m.manager}</td>
-                          <td style={{ padding: "0.8rem 1rem", color: T.yellow }}>${m.revenue.toLocaleString()}</td>
-                          <td style={{ padding: "0.8rem 1rem", color: T.green }}>${m.profit.toLocaleString()}</td>
+                          <td style={{ padding: "0.8rem 1rem", color: T.yellow }}>${(m.revenue || 0).toLocaleString()}</td>
+                          <td style={{ padding: "0.8rem 1rem", color: T.green }}>${(m.profit || 0).toLocaleString()}</td>
                           <td style={{ padding: "0.8rem 1rem", color: m.roi_pct >= 20 ? T.green : m.roi_pct >= 10 ? T.yellow : T.red }}>{m.roi_pct}%</td>
                           <td style={{ padding: "0.8rem 1rem" }}>{m.approved}</td>
                           <td style={{ padding: "0.8rem 1rem" }}>{m.purchased}</td>
