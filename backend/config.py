@@ -18,9 +18,12 @@ class Settings(BaseSettings):
     # Keepa
     KEEPA_API_KEY: Optional[str] = None
 
-    # Stripe (Phase 2)
+    # Stripe Billing
     STRIPE_SECRET_KEY: Optional[str] = None
     STRIPE_WEBHOOK_SECRET: Optional[str] = None
+    STRIPE_STARTER_PRICE_ID: Optional[str] = None
+    STRIPE_GROWTH_PRICE_ID: Optional[str] = None
+    STRIPE_ENTERPRISE_PRICE_ID: Optional[str] = None
 
     # App
     APP_ENV: str = "development"
