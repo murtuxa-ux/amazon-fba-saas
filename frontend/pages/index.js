@@ -69,18 +69,19 @@ const KPICard = ({ title, value, sub, color, icon }) => (
 export default function Dashboard() {
   const [kpis, setKpis] = useState(null);
   const [weeks, setWeeks] = useState([]);
-  const [user, setUser] = useState(null);
+  const [userName, setUserName] = useState('User');
 
   useEffect(() => {
-    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('ecomera_user') : null;
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Failed to parse user data:', e);
+    try {
+      const stored = localStorage.getItem('ecomera_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        setUserName(u.name || u.username || 'User');
       }
-    }
+    } catch (e) {}
+  }, []);
 
+  useEffect(() => {
     const fetchData = async () => {
       try {
         const dashRes = await fetch(`${API}/dashboard`, {
@@ -110,7 +111,6 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const firstName = user?.firstName || 'User';
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -136,7 +136,7 @@ export default function Dashboard() {
         {/* Header */}
         <div style={{ marginBottom: '40px' }}>
           <div style={{ fontSize: '32px', fontWeight: 700, color: T.text, marginBottom: '8px' }}>
-            👋 Welcome back, {firstName}
+            👋 Welcome back, {userName}
           </div>
           <div style={{ fontSize: '14px', color: T.textSec }}>{today}</div>
         </div>

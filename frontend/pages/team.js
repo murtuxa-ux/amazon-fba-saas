@@ -1,504 +1,320 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-saas-production.up.railway.app";
-const token = () => typeof window !== "undefined" ? localStorage.getItem("ecomera_token") : null;
-const authHeader = () => ({ headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" } });
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://amazon-fba-saas-production.up.railway.app';
 
-export default function Team() {
-  const [team, setTeam] = useState([]);
+const T = {
+  bg: '#0A0A0A',
+  card: '#111111',
+  border: '#1E1E1E',
+  yellow: '#FFD700',
+  text: '#FFFFFF',
+  textSec: '#888888',
+  textMut: '#444444',
+  green: '#22C55E',
+  red: '#EF4444',
+  blue: '#3B82F6',
+};
+
+const authHeader = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('ecomera_token') : null;
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+};
+
+const getRoleColor = (role) => {
+  switch (role) {
+    case 'owner':
+      return { bg: T.yellow + '20', text: T.yellow };
+    case 'admin':
+      return { bg: T.blue + '20', text: T.blue };
+    case 'manager':
+      return { bg: T.green + '20', text: T.green };
+    default:
+      return { bg: T.textMut + '20', text: T.textMut };
+  }
+};
+
+export default function TeamManagement() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', role: 'viewer' });
-  const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [removingId, setRemovingId] = useState(null);
+  const [error, setError] = useState(null);
+  const [inviteForm, setInviteForm] = useState({ email: '', role: 'viewer' });
+  const [inviteError, setInviteError] = useState(null);
+  const [inviteSuccess, setInviteSuccess] = useState(null);
 
   useEffect(() => {
-    fetchTeam();
-    getCurrentUser();
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('ecomera_user') : null;
+    if (storedUser) {
+      try {
+        setCurrentUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+
+    fetchUsers();
   }, []);
 
-  const fetchTeam = async () => {
-    setLoading(true);
-    setError('');
+  const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/users`, authHeader());
-      if (!res.ok) throw new Error('Failed to fetch team');
-      const data = await res.json();
-      setTeam(Array.isArray(data) ? data : data.users || []);
-    } catch (err) {
-      setError(err.message);
-      setTeam([]);
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API}/users`, { headers: authHeader() });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(Array.isArray(data) ? data : []);
+      } else {
+        setError('Failed to load team members');
+      }
+    } catch (e) {
+      console.error('Failed to fetch users:', e);
+      setError('Error loading team members');
     } finally {
       setLoading(false);
     }
   };
 
-  const getCurrentUser = async () => {
-    try {
-      const res = await fetch(`${API_URL}/users/me`, authHeader());
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data);
-      }
-    } catch (err) {
-      console.error('Failed to get current user:', err);
-    }
-  };
-
-  const handleAddMember = async (e) => {
+  const handleInviteSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
-      setError('Name and email are required');
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    if (!inviteForm.email) {
+      setInviteError('Email is required');
       return;
     }
 
-    setSubmitting(true);
-    setError('');
     try {
-      const res = await fetch(`${API_URL}/users`, {
+      const res = await fetch(`${API}/users`, {
         method: 'POST',
-        ...authHeader(),
-        body: JSON.stringify(formData)
+        headers: authHeader(),
+        body: JSON.stringify({
+          email: inviteForm.email,
+          role: inviteForm.role,
+        }),
       });
 
-      if (!res.ok) throw new Error('Failed to add team member');
-
-      const newMember = await res.json();
-      setTeam([...team, newMember]);
-      setFormData({ name: '', email: '', role: 'viewer' });
-      setShowAddForm(false);
-      setSuccessMessage('Team member added successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
+      if (res.ok) {
+        setInviteSuccess(`Invitation sent to ${inviteForm.email}`);
+        setInviteForm({ email: '', role: 'viewer' });
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        setInviteError(data.message || 'Failed to send invitation');
+      }
+    } catch (e) {
+      console.error('Failed to send invitation:', e);
+      setInviteError('Error sending invitation');
     }
   };
 
-  const handleRemoveMember = async (userId) => {
-    if (!confirm('Are you sure you want to remove this team member?')) return;
-
-    setRemovingId(userId);
-    try {
-      const res = await fetch(`${API_URL}/users/${userId}`, {
-        method: 'DELETE',
-        ...authHeader()
-      });
-
-      if (!res.ok) throw new Error('Failed to remove team member');
-
-      setTeam(team.filter(m => m.id !== userId));
-      setSuccessMessage('Team member removed');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
-  const getRoleBadgeColor = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'owner':
-        return { bg: '#FFD700', text: '#000' };
-      case 'admin':
-        return { bg: '#A855F7', text: '#FFF' };
-      case 'manager':
-        return { bg: '#3B82F6', text: '#FFF' };
-      case 'viewer':
-      default:
-        return { bg: '#6B7280', text: '#FFF' };
-    }
-  };
-
-  const isAdminOrOwner = currentUser && (currentUser.role === 'admin' || currentUser.role === 'owner');
+  const isAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin';
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#0A0A0A" }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: T.bg }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: "2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-          <h1 style={{ color: "#FFFFFF", fontSize: "2.5rem", fontWeight: 800 }}>
-            Team Management
-          </h1>
-          {isAdminOrOwner && (
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              style={{
-                background: "#FFD700",
-                color: "#000",
-                border: "none",
-                borderRadius: "8px",
-                padding: "0.6rem 1.2rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.3s ease"
-              }}
-              onMouseEnter={(e) => e.target.style.background = "#FFC500"}
-              onMouseLeave={(e) => e.target.style.background = "#FFD700"}
-            >
-              + Add Team Member
-            </button>
-          )}
-        </div>
+      <div style={{ flex: 1, padding: '40px', overflowY: 'auto', maxHeight: '100vh' }}>
+        <h1 style={{ fontSize: '32px', fontWeight: 700, color: T.text, marginBottom: '8px' }}>
+          Team Management
+        </h1>
+        <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '40px' }}>
+          Manage your team members and collaborators
+        </p>
 
-        {error && (
-          <div style={{
-            background: "#EF4444",
-            color: "#FFF",
-            padding: "1rem",
-            borderRadius: "12px",
-            marginBottom: "2rem"
-          }}>
-            Error: {error}
+        {error && !loading && (
+          <div style={{ backgroundColor: T.red + '20', border: `1px solid ${T.red}`, borderRadius: '8px', padding: '16px', marginBottom: '24px', color: T.red }}>
+            {error}
           </div>
         )}
 
-        {successMessage && (
-          <div style={{
-            background: "#10B981",
-            color: "#FFF",
-            padding: "1rem",
-            borderRadius: "12px",
-            marginBottom: "2rem"
-          }}>
-            {successMessage}
-          </div>
-        )}
-
-        {/* Add Team Member Form */}
-        {showAddForm && isAdminOrOwner && (
-          <div style={{
-            background: "#111111",
-            border: "1px solid #1E1E1E",
-            borderRadius: "12px",
-            padding: "2rem",
-            marginBottom: "2rem"
-          }}>
-            <h3 style={{ color: "#FFD700", fontSize: "1.3rem", fontWeight: 700, marginBottom: "1.5rem" }}>
-              Add New Team Member
-            </h3>
-            <form onSubmit={handleAddMember} style={{ display: "grid", gap: "1rem" }}>
-              <div>
-                <label style={{ color: "#888", fontSize: "0.85rem", display: "block", marginBottom: "0.5rem" }}>
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{
-                    width: "100%",
-                    background: "#0A0A0A",
-                    border: "1px solid #1E1E1E",
-                    borderRadius: "8px",
-                    padding: "0.8rem",
-                    color: "#FFFFFF",
-                    fontSize: "1rem",
-                    boxSizing: "border-box"
-                  }}
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div>
-                <label style={{ color: "#888", fontSize: "0.85rem", display: "block", marginBottom: "0.5rem" }}>
-                  Email
+        {/* Invite Form (only for admin/owner) */}
+        {isAdmin && (
+          <div style={{ backgroundColor: T.card, border: `1px solid ${T.border}`, borderRadius: '8px', padding: '20px', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: T.text, marginBottom: '16px' }}>
+              Invite Team Member
+            </h2>
+            <form onSubmit={handleInviteSubmit} style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px', color: T.textSec, display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                  Email Address
                 </label>
                 <input
                   type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  placeholder="user@example.com"
                   style={{
-                    width: "100%",
-                    background: "#0A0A0A",
-                    border: "1px solid #1E1E1E",
-                    borderRadius: "8px",
-                    padding: "0.8rem",
-                    color: "#FFFFFF",
-                    fontSize: "1rem",
-                    boxSizing: "border-box"
+                    width: '100%',
+                    backgroundColor: '#0A0A0A',
+                    border: `1px solid ${T.border}`,
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: T.text,
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
                   }}
-                  placeholder="john@example.com"
                 />
               </div>
-
               <div>
-                <label style={{ color: "#888", fontSize: "0.85rem", display: "block", marginBottom: "0.5rem" }}>
+                <label style={{ fontSize: '12px', color: T.textSec, display: 'block', marginBottom: '6px', fontWeight: 600 }}>
                   Role
                 </label>
                 <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  value={inviteForm.role}
+                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
                   style={{
-                    width: "100%",
-                    background: "#0A0A0A",
-                    border: "1px solid #1E1E1E",
-                    borderRadius: "8px",
-                    padding: "0.8rem",
-                    color: "#FFFFFF",
-                    fontSize: "1rem",
-                    boxSizing: "border-box",
-                    cursor: "pointer"
+                    backgroundColor: '#0A0A0A',
+                    border: `1px solid ${T.border}`,
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: T.text,
+                    fontSize: '14px',
+                    cursor: 'pointer',
                   }}
                 >
-                  <option value="viewer">Viewer (Read-only)</option>
-                  <option value="manager">Manager (Limited edit)</option>
-                  <option value="admin">Admin (Full access)</option>
+                  <option value="viewer">Viewer</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
-
-              <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{
-                    background: "#FFD700",
-                    color: "#000",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "0.6rem 1.2rem",
-                    fontWeight: 700,
-                    cursor: submitting ? "not-allowed" : "pointer",
-                    opacity: submitting ? 0.7 : 1,
-                    transition: "all 0.3s ease"
-                  }}
-                >
-                  {submitting ? 'Adding...' : 'Add Member'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  style={{
-                    background: "transparent",
-                    color: "#888",
-                    border: "1px solid #1E1E1E",
-                    borderRadius: "8px",
-                    padding: "0.6rem 1.2rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "all 0.3s ease"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.borderColor = "#FFD700";
-                    e.target.style.color = "#FFD700";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.borderColor = "#1E1E1E";
-                    e.target.style.color = "#888";
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: T.yellow,
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                Send Invitation
+              </button>
             </form>
+            {inviteError && (
+              <div style={{ color: T.red, fontSize: '12px', marginTop: '12px' }}>
+                {inviteError}
+              </div>
+            )}
+            {inviteSuccess && (
+              <div style={{ color: T.green, fontSize: '12px', marginTop: '12px' }}>
+                {inviteSuccess}
+              </div>
+            )}
           </div>
         )}
 
         {/* Team Members Grid */}
-        <section>
-          <h2 style={{ color: "#FFD700", fontSize: "1.3rem", marginBottom: "1.5rem", fontWeight: 700 }}>
-            Team Members ({team.length})
-          </h2>
-
-          {loading ? (
-            <div style={{ color: "#888", textAlign: "center", padding: "2rem" }}>Loading team members...</div>
-          ) : team.length === 0 ? (
-            <div style={{
-              background: "#111111",
-              border: "1px solid #1E1E1E",
-              borderRadius: "12px",
-              padding: "2rem",
-              textAlign: "center",
-              color: "#888"
-            }}>
-              No team members yet. {isAdminOrOwner && 'Click "Add Team Member" to get started.'}
-            </div>
-          ) : (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: "1.5rem"
-            }}>
-              {team.map((member) => {
-                const roleBadge = getRoleBadgeColor(member.role);
-                const isCurrentUser = currentUser && currentUser.id === member.id;
-
-                return (
-                  <div
-                    key={member.id}
-                    style={{
-                      background: "#111111",
-                      border: isCurrentUser ? "2px solid #FFD700" : "1px solid #1E1E1E",
-                      borderRadius: "12px",
-                      padding: "1.5rem",
-                      transition: "all 0.3s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isCurrentUser) e.currentTarget.style.borderColor = "#FFD700";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isCurrentUser) e.currentTarget.style.borderColor = "#1E1E1E";
-                    }}
-                  >
-                    {/* Avatar Placeholder */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: T.textSec }}>
+            Loading team members...
+          </div>
+        ) : users.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+            {users.map((user) => {
+              const roleColor = getRoleColor(user.role);
+              return (
+                <div
+                  key={user.id}
+                  style={{
+                    backgroundColor: T.card,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: '8px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = T.yellow;
+                    e.currentTarget.style.boxShadow = `0 0 0 1px ${T.yellow}20`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                     <div style={{
-                      width: "60px",
-                      height: "60px",
-                      background: "linear-gradient(135deg, #FFD700, #FFA500)",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: "1rem",
-                      fontSize: "1.5rem",
+                      width: '48px',
+                      height: '48px',
+                      backgroundColor: T.yellow,
+                      color: '#000',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       fontWeight: 800,
-                      color: "#000"
+                      fontSize: '18px',
+                      flexShrink: 0,
                     }}>
-                      {member.name ? member.name.charAt(0).toUpperCase() : 'U'}
+                      {user.avatar || user.name?.[0] || 'U'}
                     </div>
-
-                    {/* Member Info */}
-                    <h3 style={{ color: "#FFFFFF", fontWeight: 700, marginBottom: "0.3rem", fontSize: "1.1rem" }}>
-                      {member.name}
-                      {isCurrentUser && <span style={{ color: "#FFD700", marginLeft: "0.5rem", fontSize: "0.85rem" }}>(You)</span>}
-                    </h3>
-
-                    <p style={{ color: "#888", fontSize: "0.9rem", marginBottom: "1rem", wordBreak: "break-all" }}>
-                      {member.email}
-                    </p>
-
-                    {/* Role Badge */}
-                    <div style={{
-                      display: "inline-block",
-                      background: roleBadge.bg,
-                      color: roleBadge.text,
-                      padding: "0.4rem 0.8rem",
-                      borderRadius: "6px",
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
-                      marginBottom: "1rem"
-                    }}>
-                      {member.role ? member.role.charAt(0).toUpperCase() + member.role.slice(1) : 'Viewer'}
-                    </div>
-
-                    {/* Joined Date */}
-                    <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1rem" }}>
-                      Joined {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'Recently'}
-                    </p>
-
-                    {/* Remove Button - only for admins/owners, not for current user */}
-                    {isAdminOrOwner && !isCurrentUser && (
-                      <button
-                        onClick={() => handleRemoveMember(member.id)}
-                        disabled={removingId === member.id}
-                        style={{
-                          width: "100%",
-                          background: "#EF4444",
-                          color: "#FFF",
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "0.6rem",
-                          fontWeight: 600,
-                          cursor: removingId === member.id ? "not-allowed" : "pointer",
-                          opacity: removingId === member.id ? 0.7 : 1,
-                          transition: "all 0.3s ease"
-                        }}
-                        onMouseEnter={(e) => {
-                          if (removingId !== member.id) e.target.style.background = "#DC2626";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (removingId !== member.id) e.target.style.background = "#EF4444";
-                        }}
-                      >
-                        {removingId === member.id ? 'Removing...' : 'Remove'}
-                      </button>
-                    )}
-
-                    {isCurrentUser && (
-                      <div style={{
-                        width: "100%",
-                        background: "#1E1E1E",
-                        color: "#888",
-                        border: "1px solid #1E1E1E",
-                        borderRadius: "8px",
-                        padding: "0.6rem",
-                        textAlign: "center",
-                        fontWeight: 600,
-                        fontSize: "0.9rem"
-                      }}>
-                        Your Account
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '16px', fontWeight: 600, color: T.text }}>
+                        {user.name}
                       </div>
-                    )}
+                      <div style={{ fontSize: '12px', color: T.textSec, marginTop: '2px' }}>
+                        {user.email}
+                      </div>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
 
-        {/* Team Statistics Footer */}
-        {!loading && team.length > 0 && (
-          <section style={{ marginTop: "3rem", paddingTop: "2rem", borderTop: "1px solid #1E1E1E" }}>
-            <h3 style={{ color: "#FFD700", fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Team Statistics</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
-              <div style={{
-                background: "#111111",
-                border: "1px solid #1E1E1E",
-                borderRadius: "12px",
-                padding: "1rem",
-                textAlign: "center"
-              }}>
-                <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Total Members</p>
-                <p style={{ color: "#FFFFFF", fontSize: "1.8rem", fontWeight: 800 }}>{team.length}</p>
-              </div>
-              <div style={{
-                background: "#111111",
-                border: "1px solid #1E1E1E",
-                borderRadius: "12px",
-                padding: "1rem",
-                textAlign: "center"
-              }}>
-                <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Admins</p>
-                <p style={{ color: "#A855F7", fontSize: "1.8rem", fontWeight: 800 }}>
-                  {team.filter(m => m.role === 'admin').length}
-                </p>
-              </div>
-              <div style={{
-                background: "#111111",
-                border: "1px solid #1E1E1E",
-                borderRadius: "12px",
-                padding: "1rem",
-                textAlign: "center"
-              }}>
-                <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Managers</p>
-                <p style={{ color: "#3B82F6", fontSize: "1.8rem", fontWeight: 800 }}>
-                  {team.filter(m => m.role === 'manager').length}
-                </p>
-              </div>
-              <div style={{
-                background: "#111111",
-                border: "1px solid #1E1E1E",
-                borderRadius: "12px",
-                padding: "1rem",
-                textAlign: "center"
-              }}>
-                <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "0.5rem" }}>Viewers</p>
-                <p style={{ color: "#6B7280", fontSize: "1.8rem", fontWeight: 800 }}>
-                  {team.filter(m => m.role === 'viewer').length}
-                </p>
-              </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      backgroundColor: roleColor.bg,
+                      color: roleColor.text,
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      textTransform: 'capitalize',
+                    }}>
+                      {user.role}
+                    </span>
+                    <span style={{
+                      display: 'inline-block',
+                      backgroundColor: user.active ? T.green + '20' : T.textMut + '20',
+                      color: user.active ? T.green : T.textMut,
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}>
+                      {user.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '12px', color: T.textMut, paddingTop: '8px', borderTop: `1px solid ${T.border}` }}>
+                    Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ backgroundColor: T.card, border: `1px solid ${T.border}`, borderRadius: '8px', padding: '40px', textAlign: 'center', color: T.textSec }}>
+            <div style={{ fontSize: '16px', marginBottom: '8px' }}>
+              No team members yet
             </div>
-          </section>
+            <div style={{ fontSize: '14px' }}>
+              {isAdmin ? 'Invite your first team member using the form above.' : 'Waiting for admin to invite team members.'}
+            </div>
+          </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
