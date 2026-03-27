@@ -81,11 +81,15 @@ export default function AdminDashboard() {
         setTasks(await tasksRes.json());
       }
 
-      // Fetch logs
-      const logsRes = await fetch(`${API_URL}/system/logs?limit=50`, { headers });
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
-        setLogs(logsData.logs || []);
+      // Fetch logs (may fail if user lacks admin role - that's OK)
+      try {
+        const logsRes = await fetch(`${API_URL}/system/logs?limit=50`, { headers });
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          setLogs(logsData.logs || []);
+        }
+      } catch (logErr) {
+        console.log('Logs endpoint not available:', logErr.message);
       }
 
       setError(null);
