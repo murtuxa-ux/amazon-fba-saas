@@ -173,12 +173,12 @@ async def get_business_metrics(
         total_products = db.query(func.count(Product.id)).scalar() or 0
 
         # Average ROI
-        avg_roi = db.query(func.avg(WeeklyReport.roi)).scalar() or 0
+        avg_roi = db.query(func.avg(WeeklyReport.roi_pct)).scalar() or 0
 
-        # Active clients (count of clients with reports in last 30 days)
+        # Active clients (count of orgs with reports in last 30 days)
         cutoff_time = datetime.utcnow() - timedelta(days=30)
-        active_clients = db.query(func.count(func.distinct(WeeklyReport.client_id))).filter(
-            WeeklyReport.week_ending >= cutoff_time
+        active_clients = db.query(func.count(func.distinct(WeeklyReport.org_id))).filter(
+            WeeklyReport.created_at >= cutoff_time
         ).scalar() or 0
 
         return {
