@@ -4,19 +4,20 @@ Stage 6 Module - Comprehensive system health and business metrics
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import os
 import resource
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 
+from sqlalchemy.orm import Session
+from sqlalchemy import func, text
 from auth import get_current_user, require_role
 from models import User, Organization, Product, Client, WeeklyReport
 from database import get_db
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/system", tags=["system"])
 
 # Application start time (tracks uptime)
@@ -56,7 +57,7 @@ def get_memory_info() -> Dict[str, Any]:
     try:
         usage = resource.getrusage(resource.RUSAGE_SELF)
         return {
-            "rss_mb": usage.ru_maxrss / 1024,  # Max resident set size in MB
+            "rss_mb": usage.ru_maxrss / 1024,
             "user_time_seconds": usage.ru_utime,
             "system_time_seconds": usage.ru_stime,
         }
@@ -73,7 +74,6 @@ def get_uptime() -> Dict[str, Any]:
     """Calculate application uptime"""
     now = datetime.utcnow()
     uptime_delta = now - APP_START_TIME
-
     days = uptime_delta.days
     seconds = uptime_delta.seconds
     hours = seconds // 3600
@@ -89,8 +89,8 @@ def get_uptime() -> Dict[str, Any]:
 def check_database_connection(db: Session) -> Dict[str, Any]:
     """Check database connection status"""
     try:
-        # Simple query to verify connection
-        db.execute("SELECT 1")
+        # Simple query to verify connection - must use text() for SQLAlchemy 2.x
+        db.execute(text("SELECT 1"))
         return {
             "status": "healthy",
             "message": "Database connection active",
@@ -119,7 +119,6 @@ async def get_system_status(
         db_status = check_database_connection(db)
 
         # Count active users (users with login activity in last 24 hours)
-        from datetime import timedelta
         cutoff_time = datetime.utcnow() - timedelta(hours=24)
         active_users = db.query(func.count(User.id)).filter(
             User.last_login >= cutoff_time if hasattr(User, 'last_login') else True
@@ -178,7 +177,6 @@ async def get_business_metrics(
 
         # Active clients (count of clients with reports in last 30 days)
         cutoff_time = datetime.utcnow() - timedelta(days=30)
-        from datetime import timedelta
         active_clients = db.query(func.count(func.distinct(WeeklyReport.client_id))).filter(
             WeeklyReport.week_ending >= cutoff_time
         ).scalar() or 0
