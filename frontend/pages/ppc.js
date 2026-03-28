@@ -1,285 +1,451 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
-import { useAuth } from "../context/AuthContext";
-
-const T = {
-  bg: "#0A0A0A",
-  card: "#111111",
-  border: "#1E1E1E",
-  yellow: "#FFD700",
-  yellowDim: "rgba(255,215,0,0.12)",
-  text: "#FFFFFF",
-  textSec: "#888888",
-  textMut: "#555555",
-  green: "#22C55E",
-  red: "#EF4444",
-};
 
 const API = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-saas-production.up.railway.app";
 
-export default function PPCManager() {
-  const router = useRouter();
-  const { user, token } = useAuth();
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [tab, setTab] = useState("campaigns");
+function getToken() {
+  if (typeof window !== "undefined") return localStorage.getItem("ecomera_token");
+  return null;
+}
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
+function authHeaders() {
+  return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" };
+}
 
-  const fetchCampaigns = async () => {
+const S = {
+  page: { display: "flex", minHeight: "100vh", background: "#0A0A0A", color: "#E0E0E0", fontFamily: "'Inter', system-ui, sans-serif" },
+  main: { flex: 1, padding: "2rem", overflowY: "auto" },
+  title: { fontSize: "1.6rem", fontWeight: 800, color: "#FFD700", marginBottom: "0.25rem" },
+  subtitle: { fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" },
+  card: { background: "#111111", border: "1px solid #1E1E1E", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.25rem" },
+  cardTitle: { fontSize: "1rem", fontWeight: 700, color: "#FFD700", marginBottom: "1rem" },
+  tabs: { display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" },
+  tab: (active) => ({ padding: "0.6rem 1.2rem", borderRadius: "8px", border: active ? "1px solid #FFD700" : "1px solid #1E1E1E", background: active ? "#FFD70015" : "#111111", color: active ? "#FFD700" : "#777", cursor: "pointer", fontWeight: active ? 700 : 400, fontSize: "0.85rem", transition: "all 0.15s" }),
+  btn: { padding: "0.6rem 1.2rem", borderRadius: "8px", border: "none", background: "#FFD700", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" },
+  btnOutline: { padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid #333", background: "transparent", color: "#AAA", cursor: "pointer", fontSize: "0.8rem" },
+  btnSm: (color) => ({ padding: "0.3rem 0.7rem", borderRadius: "6px", border: "none", background: color || "#222", color: "#FFF", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }),
+  input: { padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid #1E1E1E", background: "#0A0A0A", color: "#E0E0E0", fontSize: "0.85rem", width: "100%" },
+  select: { padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid #1E1E1E", background: "#0A0A0A", color: "#E0E0E0", fontSize: "0.85rem" },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" },
+  th: { padding: "0.6rem 0.5rem", textAlign: "left", borderBottom: "1px solid #1E1E1E", color: "#666", fontWeight: 600, fontSize: "0.72rem", textTransform: "uppercase" },
+  td: { padding: "0.55rem 0.5rem", borderBottom: "1px solid #0F0F0F", color: "#CCC" },
+  badge: (color) => ({ display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.7rem", fontWeight: 700, background: `${color}20`, color: color, border: `1px solid ${color}40` }),
+  stat: { textAlign: "center", padding: "0.75rem" },
+  statVal: { fontSize: "1.5rem", fontWeight: 800, color: "#FFD700" },
+  statLabel: { fontSize: "0.72rem", color: "#666", marginTop: "0.25rem" },
+  uploadArea: { border: "2px dashed #1E1E1E", borderRadius: "12px", padding: "2rem", textAlign: "center", cursor: "pointer", transition: "all 0.2s" },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "1rem" },
+};
+
+export default function PPCActionPlan() {
+  const [activeTab, setActiveTab] = useState("plans");
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [planDetail, setPlanDetail] = useState(null);
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [clientName, setClientName] = useState("");
+  const fileRef = useRef(null);
+
+  useEffect(() => { fetchPlans(); fetchRules(); }, []);
+
+  async function fetchPlans() {
     try {
-      setLoading(true);
-      const res = await fetch(`${API}/ppc/campaigns`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCampaigns(Array.isArray(data) ? data : data.campaigns || []);
-      } else {
-        setCampaigns([]);
+      const r = await fetch(`${API}/ppc-action-plan/plans`, { headers: authHeaders() });
+      if (r.ok) setPlans(await r.json());
+    } catch (e) { console.error("Failed to fetch plans:", e); }
+  }
+
+  async function fetchRules() {
+    try {
+      const r = await fetch(`${API}/ppc-action-plan/rules`, { headers: authHeaders() });
+      if (r.ok) setRules(await r.json());
+    } catch (e) { console.error("Failed to fetch rules:", e); }
+  }
+
+  async function fetchPlanDetail(planId) {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/ppc-action-plan/plans/${planId}`, { headers: authHeaders() });
+      if (r.ok) {
+        const data = await r.json();
+        setPlanDetail(data);
+        setSelectedPlan(planId);
+        setActiveTab("detail");
       }
-    } catch (err) {
-      setCampaigns([]);
-    } finally {
-      setLoading(false);
+    } catch (e) { console.error("Failed to fetch plan detail:", e); }
+    setLoading(false);
+  }
+
+  async function handleUpload() {
+    if (!fileRef.current?.files[0] || !clientName.trim()) {
+      alert("Please enter a client name and select a CSV file.");
+      return;
     }
-  };
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", fileRef.current.files[0]);
+    formData.append("client_name", clientName.trim());
 
-  const S = {
-    page: {
-      display: "flex",
-      minHeight: "100vh",
-      backgroundColor: T.bg,
-      color: T.text,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    },
-    main: {
-      flex: 1,
-      padding: "32px",
-      overflowY: "auto",
-    },
-    header: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: "24px",
-    },
-    title: {
-      fontSize: "24px",
-      fontWeight: 700,
-    },
-    subtitle: {
-      fontSize: "14px",
-      color: T.textSec,
-      marginTop: "4px",
-    },
-    tabs: {
-      display: "flex",
-      gap: "4px",
-      marginBottom: "24px",
-      borderBottom: `1px solid ${T.border}`,
-      paddingBottom: "0",
-    },
-    tab: (active) => ({
-      padding: "10px 20px",
-      fontSize: "13px",
-      fontWeight: active ? 600 : 400,
-      color: active ? T.yellow : T.textSec,
-      backgroundColor: "transparent",
-      border: "none",
-      borderBottom: active ? `2px solid ${T.yellow}` : "2px solid transparent",
-      cursor: "pointer",
-      transition: "all 0.15s",
-    }),
-    grid: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-      gap: "16px",
-      marginBottom: "32px",
-    },
-    statCard: {
-      backgroundColor: T.card,
-      border: `1px solid ${T.border}`,
-      borderRadius: "8px",
-      padding: "20px",
-    },
-    statLabel: {
-      fontSize: "12px",
-      color: T.textSec,
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      marginBottom: "8px",
-    },
-    statValue: {
-      fontSize: "28px",
-      fontWeight: 700,
-    },
-    table: {
-      width: "100%",
-      borderCollapse: "collapse",
-      backgroundColor: T.card,
-      border: `1px solid ${T.border}`,
-      borderRadius: "8px",
-      overflow: "hidden",
-    },
-    th: {
-      textAlign: "left",
-      padding: "12px 16px",
-      fontSize: "11px",
-      fontWeight: 700,
-      color: T.textMut,
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      borderBottom: `1px solid ${T.border}`,
-      backgroundColor: T.card,
-    },
-    td: {
-      padding: "12px 16px",
-      fontSize: "13px",
-      borderBottom: `1px solid ${T.border}`,
-      color: T.textSec,
-    },
-    badge: (color) => ({
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: "4px",
-      fontSize: "11px",
-      fontWeight: 600,
-      backgroundColor: color === "green" ? "rgba(34,197,94,0.12)" : color === "red" ? "rgba(239,68,68,0.12)" : T.yellowDim,
-      color: color === "green" ? T.green : color === "red" ? T.red : T.yellow,
-    }),
-    emptyState: {
-      textAlign: "center",
-      padding: "60px 20px",
-      backgroundColor: T.card,
-      border: `1px solid ${T.border}`,
-      borderRadius: "8px",
-    },
-    emptyTitle: {
-      fontSize: "18px",
-      fontWeight: 600,
-      marginBottom: "8px",
-    },
-    emptyText: {
-      fontSize: "14px",
-      color: T.textSec,
-      marginBottom: "20px",
-    },
-    btn: {
-      padding: "10px 20px",
-      backgroundColor: T.yellow,
-      color: "#000",
-      border: "none",
-      borderRadius: "6px",
-      fontSize: "13px",
-      fontWeight: 600,
-      cursor: "pointer",
-    },
-  };
+    try {
+      const r = await fetch(`${API}/ppc-action-plan/generate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: formData,
+      });
+      if (r.ok) {
+        const data = await r.json();
+        alert(`Action plan generated! ${data.bid_changes} bid changes, ${data.harvests} harvests, ${data.negatives} negatives.`);
+        setClientName("");
+        if (fileRef.current) fileRef.current.value = "";
+        fetchPlans();
+        fetchPlanDetail(data.plan_id);
+      } else {
+        const err = await r.json();
+        alert("Error: " + (err.detail || "Upload failed"));
+      }
+    } catch (e) { alert("Upload error: " + e.message); }
+    setUploading(false);
+  }
 
-  const totalSpend = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
-  const totalSales = campaigns.reduce((s, c) => s + (c.sales || 0), 0);
-  const avgAcos = totalSales > 0 ? ((totalSpend / totalSales) * 100).toFixed(1) : "0.0";
-  const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0);
+  async function approveItem(type, itemId, approved) {
+    const endpoint = type === "bid" ? "bid-changes" : type === "harvest" ? "harvests" : "negatives";
+    try {
+      await fetch(`${API}/ppc-action-plan/${endpoint}/${itemId}/approve`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ approved }),
+      });
+      if (selectedPlan) fetchPlanDetail(selectedPlan);
+    } catch (e) { console.error("Approve error:", e); }
+  }
+
+  async function approveAll(planId) {
+    try {
+      await fetch(`${API}/ppc-action-plan/plans/${planId}/approve-all`, {
+        method: "PUT",
+        headers: authHeaders(),
+      });
+      fetchPlanDetail(planId);
+      fetchPlans();
+    } catch (e) { console.error("Approve all error:", e); }
+  }
+
+  function exportPlan(planId) {
+    window.open(`${API}/ppc-action-plan/plans/${planId}/export?token=${getToken()}`, "_blank");
+  }
+
+  function StatusBadge({ status }) {
+    const colors = { draft: "#888", reviewed: "#FFD700", approved: "#00CC66", applied: "#00AAFF" };
+    return <span style={S.badge(colors[status] || "#888")}>{status?.toUpperCase()}</span>;
+  }
+
+  function ActionBadge({ action }) {
+    if (!action) return null;
+    const color = action.includes("Hard") ? "#FF4444" : action.includes("Mild") ? "#FFD700" : "#00CC66";
+    return <span style={S.badge(color)}>{action}</span>;
+  }
 
   return (
     <div style={S.page}>
       <Sidebar />
       <main style={S.main}>
-        <div style={S.header}>
-          <div>
-            <div style={S.title}>PPC Manager</div>
-            <div style={S.subtitle}>Manage and optimize your Amazon PPC campaigns</div>
-          </div>
-          <button style={S.btn} onClick={fetchCampaigns}>Refresh Data</button>
-        </div>
+        <div style={S.title}>PPC Action Plan Engine</div>
+        <div style={S.subtitle}>Automated bid optimization, keyword harvesting & negative management</div>
 
         <div style={S.tabs}>
-          {["campaigns", "keywords", "analytics"].map((t) => (
-            <button
-              key={t}
-              style={S.tab(tab === t)}
-              onClick={() => setTab(t)}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div style={S.grid}>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Total Spend</div>
-            <div style={S.statValue}>${totalSpend.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Total Sales</div>
-            <div style={S.statValue}>${totalSales.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Avg ACoS</div>
-            <div style={{ ...S.statValue, color: parseFloat(avgAcos) > 30 ? T.red : T.green }}>{avgAcos}%</div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Impressions</div>
-            <div style={S.statValue}>{totalImpressions.toLocaleString()}</div>
-          </div>
-        </div>
-
-        {loading ? (
-          <div style={S.emptyState}>
-            <div style={S.emptyTitle}>Loading campaigns...</div>
-          </div>
-        ) : campaigns.length === 0 ? (
-          <div style={S.emptyState}>
-            <div style={S.emptyTitle}>No PPC Campaigns Yet</div>
-            <div style={S.emptyText}>
-              PPC campaigns will appear here once they are synced from your Amazon Advertising account.
+          {["plans", "generate", "rules"].map(t => (
+            <div key={t} style={S.tab(activeTab === t)} onClick={() => setActiveTab(t)}>
+              {t === "plans" ? "Action Plans" : t === "generate" ? "Generate New" : "Rules Engine"}
             </div>
-          </div>
-        ) : (
-          <div style={{ borderRadius: "8px", overflow: "hidden", border: `1px solid ${T.border}` }}>
-            <table style={S.table}>
-              <thead>
-                <tr>
-                  <th style={S.th}>Campaign Name</th>
-                  <th style={S.th}>Status</th>
-                  <th style={S.th}>Budget</th>
-                  <th style={S.th}>Spend</th>
-                  <th style={S.th}>Sales</th>
-                  <th style={S.th}>ACoS</th>
-                  <th style={S.th}>Impressions</th>
-                  <th style={S.th}>Clicks</th>
-                  <th style={S.th}>CTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c, i) => {
-                  const acos = c.sales > 0 ? ((c.spend / c.sales) * 100).toFixed(1) : "0.0";
-                  const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(2) : "0.00";
-                  return (
-                    <tr key={c.id || i}>
-                      <td style={{ ...S.td, color: T.text, fontWeight: 500 }}>{c.name || c.campaign_name || "Unnamed"}</td>
+          ))}
+          {planDetail && (
+            <div style={S.tab(activeTab === "detail")} onClick={() => setActiveTab("detail")}>
+              Plan Detail
+            </div>
+          )}
+        </div>
+
+        {/* ── Plans List ── */}
+        {activeTab === "plans" && (
+          <div style={S.card}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={S.cardTitle}>Recent Action Plans</div>
+              <button style={S.btn} onClick={() => setActiveTab("generate")}>+ Generate New Plan</button>
+            </div>
+            {plans.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#555" }}>
+                No action plans yet. Upload a Seller Central CSV to generate your first plan.
+              </div>
+            ) : (
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Client</th>
+                    <th style={S.th}>Date</th>
+                    <th style={S.th}>Status</th>
+                    <th style={S.th}>ACoS</th>
+                    <th style={S.th}>Spend</th>
+                    <th style={S.th}>Bids</th>
+                    <th style={S.th}>Harvests</th>
+                    <th style={S.th}>Negatives</th>
+                    <th style={S.th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map(p => (
+                    <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => fetchPlanDetail(p.id)}>
+                      <td style={{ ...S.td, fontWeight: 600, color: "#FFD700" }}>{p.client_name}</td>
+                      <td style={S.td}>{p.plan_date?.split("T")[0]}</td>
+                      <td style={S.td}><StatusBadge status={p.status} /></td>
+                      <td style={{ ...S.td, color: p.overall_acos > 30 ? "#FF4444" : "#00CC66" }}>{p.overall_acos?.toFixed(1)}%</td>
+                      <td style={S.td}>${p.total_spend?.toFixed(2)}</td>
+                      <td style={S.td}>{p.bid_changes_count}</td>
+                      <td style={S.td}>{p.harvest_count}</td>
+                      <td style={S.td}>{p.negatives_count}</td>
                       <td style={S.td}>
-                        <span style={S.badge(c.status === "active" || c.status === "enabled" ? "green" : "red")}>
-                          {(c.status || "unknown").toUpperCase()}
-                        </span>
+                        <button style={S.btnSm("#1E1E1E")} onClick={(e) => { e.stopPropagation(); exportPlan(p.id); }}>Export</button>
                       </td>
-                      <td style={S.td}>${(c.budget || 0).toFixed(2)}</td>
-                      <td style={S.td}>${(c.spend || 0).toFixed(2)}</td>
-                      <td style={S.td}>${(c.sales || 0).toFixed(2)}</td>
-                      <td style={{ ...S.td, color: parseFloat(acos) > 30 ? T.red : T.green }}>{acos}%</td>
-                      <td style={S.td}>{(c.impressions || 0).toLocaleString()}</td>
-                      <td style={S.td}>{(c.clicks || 0).toLocaleString()}</td>
-                      <td style={S.td}>{ctr}%</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ── Generate New Plan ── */}
+        {activeTab === "generate" && (
+          <div style={S.card}>
+            <div style={S.cardTitle}>Generate New Action Plan</div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ fontSize: "0.8rem", color: "#888", marginBottom: "0.4rem", display: "block" }}>Client Name *</label>
+              <input style={{ ...S.input, maxWidth: "400px" }} placeholder="e.g. Creative Crafts HMA" value={clientName} onChange={e => setClientName(e.target.value)} />
+            </div>
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ fontSize: "0.8rem", color: "#888", marginBottom: "0.4rem", display: "block" }}>Upload PPC Data (CSV from Seller Central or Helium 10)</label>
+              <div style={S.uploadArea} onClick={() => fileRef.current?.click()}>
+                <input type="file" ref={fileRef} accept=".csv" style={{ display: "none" }} />
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>+</div>
+                <div style={{ color: "#888" }}>Click to upload CSV file</div>
+                <div style={{ fontSize: "0.72rem", color: "#555", marginTop: "0.5rem" }}>
+                  Supports: Sponsored Products Bulk Sheet, Search Term Report, Campaign Report
+                </div>
+              </div>
+            </div>
+            <button style={{ ...S.btn, opacity: uploading ? 0.5 : 1 }} onClick={handleUpload} disabled={uploading}>
+              {uploading ? "Generating..." : "Generate Action Plan"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Plan Detail ── */}
+        {activeTab === "detail" && planDetail && (
+          <>
+            {/* Summary */}
+            <div style={S.card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <div>
+                  <div style={S.cardTitle}>{planDetail.plan.client_name} — Action Plan</div>
+                  <div style={{ fontSize: "0.8rem", color: "#666" }}>{planDetail.plan.plan_date?.split("T")[0]} | {planDetail.plan.report_period} | <StatusBadge status={planDetail.plan.status} /></div>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button style={S.btnOutline} onClick={() => exportPlan(planDetail.plan.id)}>Export Excel</button>
+                  {planDetail.plan.status === "draft" && (
+                    <button style={S.btn} onClick={() => approveAll(planDetail.plan.id)}>Approve All</button>
+                  )}
+                </div>
+              </div>
+
+              <div style={S.grid}>
+                <div style={S.stat}><div style={{ ...S.statVal, color: planDetail.plan.overall_acos > 30 ? "#FF4444" : "#00CC66" }}>{planDetail.plan.overall_acos?.toFixed(1)}%</div><div style={S.statLabel}>Overall ACoS</div></div>
+                <div style={S.stat}><div style={S.statVal}>${planDetail.plan.total_spend?.toFixed(0)}</div><div style={S.statLabel}>Total Spend</div></div>
+                <div style={S.stat}><div style={S.statVal}>${planDetail.plan.total_sales?.toFixed(0)}</div><div style={S.statLabel}>Total Sales</div></div>
+                <div style={S.stat}><div style={S.statVal}>{planDetail.plan.total_keywords}</div><div style={S.statLabel}>Keywords</div></div>
+                <div style={S.stat}><div style={{ ...S.statVal, color: "#FF8800" }}>{planDetail.plan.bid_changes_count}</div><div style={S.statLabel}>Bid Changes</div></div>
+                <div style={S.stat}><div style={{ ...S.statVal, color: "#00CC66" }}>{planDetail.plan.harvest_count}</div><div style={S.statLabel}>Harvests</div></div>
+                <div style={S.stat}><div style={{ ...S.statVal, color: "#FF4444" }}>{planDetail.plan.negatives_count}</div><div style={S.statLabel}>Negatives</div></div>
+              </div>
+            </div>
+
+            {/* Bid Changes */}
+            {planDetail.bid_changes.length > 0 && (
+              <div style={S.card}>
+                <div style={{ ...S.cardTitle, color: "#FF8800" }}>Bid Change Recommendations ({planDetail.bid_changes.length})</div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={S.table}>
+                    <thead>
+                      <tr>
+                        <th style={S.th}>Keyword</th>
+                        <th style={S.th}>Campaign</th>
+                        <th style={S.th}>Match</th>
+                        <th style={S.th}>Impr</th>
+                        <th style={S.th}>Clicks</th>
+                        <th style={S.th}>Spend</th>
+                        <th style={S.th}>Sales</th>
+                        <th style={S.th}>ACoS</th>
+                        <th style={S.th}>Bid</th>
+                        <th style={S.th}>Action</th>
+                        <th style={S.th}>New Bid</th>
+                        <th style={S.th}>Approve</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planDetail.bid_changes.map(b => (
+                        <tr key={b.id}>
+                          <td style={{ ...S.td, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.keyword_target}</td>
+                          <td style={{ ...S.td, maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.72rem" }}>{b.campaign}</td>
+                          <td style={S.td}>{b.match_type}</td>
+                          <td style={S.td}>{b.impressions?.toLocaleString()}</td>
+                          <td style={S.td}>{b.clicks}</td>
+                          <td style={S.td}>${b.spend?.toFixed(2)}</td>
+                          <td style={S.td}>${b.sales?.toFixed(2)}</td>
+                          <td style={{ ...S.td, color: b.acos > 30 ? "#FF4444" : "#00CC66", fontWeight: 600 }}>{b.acos?.toFixed(1)}%</td>
+                          <td style={S.td}>${b.current_bid?.toFixed(2)}</td>
+                          <td style={S.td}><ActionBadge action={b.action} /></td>
+                          <td style={{ ...S.td, fontWeight: 700, color: "#FFD700" }}>${b.new_bid?.toFixed(2)}</td>
+                          <td style={S.td}>
+                            {b.approved === true ? <span style={S.badge("#00CC66")}>YES</span> :
+                             b.approved === false ? <span style={S.badge("#FF4444")}>NO</span> : (
+                              <div style={{ display: "flex", gap: "0.25rem" }}>
+                                <button style={S.btnSm("#00CC66")} onClick={() => approveItem("bid", b.id, true)}>Y</button>
+                                <button style={S.btnSm("#FF4444")} onClick={() => approveItem("bid", b.id, false)}>N</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Keyword Harvests */}
+            {planDetail.harvests.length > 0 && (
+              <div style={S.card}>
+                <div style={{ ...S.cardTitle, color: "#00CC66" }}>Keyword Harvests ({planDetail.harvests.length})</div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={S.table}>
+                    <thead>
+                      <tr>
+                        <th style={S.th}>Search Term</th>
+                        <th style={S.th}>Source Campaign</th>
+                        <th style={S.th}>Target</th>
+                        <th style={S.th}>Clicks</th>
+                        <th style={S.th}>Orders</th>
+                        <th style={S.th}>Spend</th>
+                        <th style={S.th}>Sales</th>
+                        <th style={S.th}>Action</th>
+                        <th style={S.th}>Approve</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planDetail.harvests.map(h => (
+                        <tr key={h.id}>
+                          <td style={{ ...S.td, fontWeight: 600, color: "#00CC66" }}>{h.search_term}</td>
+                          <td style={{ ...S.td, fontSize: "0.72rem" }}>{h.source_campaign}</td>
+                          <td style={S.td}>{h.auto_target}</td>
+                          <td style={S.td}>{h.clicks}</td>
+                          <td style={S.td}>{h.orders}</td>
+                          <td style={S.td}>${h.spend?.toFixed(2)}</td>
+                          <td style={S.td}>${h.sales?.toFixed(2)}</td>
+                          <td style={S.td}><span style={S.badge("#00CC66")}>{h.recommended_action}</span></td>
+                          <td style={S.td}>
+                            {h.approved === true ? <span style={S.badge("#00CC66")}>YES</span> :
+                             h.approved === false ? <span style={S.badge("#FF4444")}>NO</span> : (
+                              <div style={{ display: "flex", gap: "0.25rem" }}>
+                                <button style={S.btnSm("#00CC66")} onClick={() => approveItem("harvest", h.id, true)}>Y</button>
+                                <button style={S.btnSm("#FF4444")} onClick={() => approveItem("harvest", h.id, false)}>N</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Negatives */}
+            {planDetail.negatives.length > 0 && (
+              <div style={S.card}>
+                <div style={{ ...S.cardTitle, color: "#FF4444" }}>Negatives to Add ({planDetail.negatives.length})</div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={S.table}>
+                    <thead>
+                      <tr>
+                        <th style={S.th}>Search Term</th>
+                        <th style={S.th}>Source Campaign</th>
+                        <th style={S.th}>Wasted Clicks</th>
+                        <th style={S.th}>Wasted Spend</th>
+                        <th style={S.th}>Action</th>
+                        <th style={S.th}>Priority</th>
+                        <th style={S.th}>Approve</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planDetail.negatives.map(n => (
+                        <tr key={n.id}>
+                          <td style={{ ...S.td, fontWeight: 600, color: "#FF4444" }}>{n.search_term}</td>
+                          <td style={{ ...S.td, fontSize: "0.72rem" }}>{n.source_campaign}</td>
+                          <td style={S.td}>{n.wasted_clicks}</td>
+                          <td style={{ ...S.td, color: "#FF4444" }}>${n.wasted_spend?.toFixed(2)}</td>
+                          <td style={S.td}><span style={S.badge("#FF4444")}>{n.recommended_action}</span></td>
+                          <td style={S.td}><span style={S.badge(n.priority === "High" ? "#FF4444" : "#FFD700")}>{n.priority}</span></td>
+                          <td style={S.td}>
+                            {n.approved === true ? <span style={S.badge("#00CC66")}>YES</span> :
+                             n.approved === false ? <span style={S.badge("#FF4444")}>NO</span> : (
+                              <div style={{ display: "flex", gap: "0.25rem" }}>
+                                <button style={S.btnSm("#00CC66")} onClick={() => approveItem("negative", n.id, true)}>Y</button>
+                                <button style={S.btnSm("#FF4444")} onClick={() => approveItem("negative", n.id, false)}>N</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Rules Engine ── */}
+        {activeTab === "rules" && (
+          <div style={S.card}>
+            <div style={S.cardTitle}>PPC Rules Engine Configuration</div>
+            <div style={{ fontSize: "0.8rem", color: "#666", marginBottom: "1.5rem" }}>
+              Configure thresholds per client. Changes apply to new action plans generated after saving.
+            </div>
+            {rules.length === 0 ? (
+              <div style={{ color: "#555", padding: "1rem", textAlign: "center" }}>
+                No rules configured yet. Generate an action plan and default rules will be created automatically.
+              </div>
+            ) : (
+              rules.map(r => (
+                <div key={r.id} style={{ background: "#0A0A0A", borderRadius: "8px", padding: "1rem", marginBottom: "1rem", border: "1px solid #1E1E1E" }}>
+                  <div style={{ fontWeight: 700, color: "#FFD700", marginBottom: "0.75rem" }}>{r.name} {r.client_id ? `(Client #${r.client_id})` : "(Default)"}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem", fontSize: "0.8rem" }}>
+                    <div><span style={{ color: "#666" }}>Target ACoS:</span> <span style={{ color: "#FFD700", fontWeight: 700 }}>{r.target_acos}%</span></div>
+                    <div><span style={{ color: "#666" }}>Max ACoS (Hard):</span> <span style={{ color: "#FF4444", fontWeight: 700 }}>{r.max_acos_hard}%</span></div>
+                    <div><span style={{ color: "#666" }}>Raise Bid Below:</span> <span style={{ color: "#00CC66" }}>{r.raise_bid_threshold}%</span></div>
+                    <div><span style={{ color: "#666" }}>Lower Mild Above:</span> <span style={{ color: "#FFD700" }}>{r.lower_bid_mild_threshold}%</span></div>
+                    <div><span style={{ color: "#666" }}>Lower Hard Above:</span> <span style={{ color: "#FF4444" }}>{r.lower_bid_hard_threshold}%</span></div>
+                    <div><span style={{ color: "#666" }}>Raise Bid %:</span> +{r.raise_bid_pct}%</div>
+                    <div><span style={{ color: "#666" }}>Lower Mild %:</span> -{r.lower_bid_mild_pct}%</div>
+                    <div><span style={{ color: "#666" }}>Lower Hard %:</span> -{r.lower_bid_hard_pct}%</div>
+                    <div><span style={{ color: "#666" }}>Neg. Min Clicks:</span> {r.negative_min_clicks}</div>
+                    <div><span style={{ color: "#666" }}>Harvest Min Orders:</span> {r.harvest_min_orders}</div>
+                    <div><span style={{ color: "#666" }}>Harvest Max ACoS:</span> {r.harvest_max_acos}%</div>
+                    <div><span style={{ color: "#666" }}>Min Impressions:</span> {r.min_impressions}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </main>
