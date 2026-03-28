@@ -41,7 +41,7 @@ const FBMOrdersPage = () => {
 
       const [ordersRes, dashboardRes, pendingRes] = await Promise.all([
         fetch(`${API_URL}/fbm-orders/`, { headers }),
-        fetch(`${API_URL}/fbm-orders/dashboard`, { headers }),
+        fetch(`${API_URL}/fbm-orders/dashboard/metrics`, { headers }),
         fetch(`${API_URL}/fbm-orders/pending`, { headers }),
       ]);
 
