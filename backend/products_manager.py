@@ -8,7 +8,7 @@ Tracks financials, supplier info, BSR, and status transitions with full audit tr
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Session, relationship
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum as PyEnum
@@ -122,7 +122,7 @@ class ProductStatusLog(Base):
 class StatusHistoryEntry(BaseModel):
     """Status history entry from JSON"""
     timestamp: str
-    old_status: str
+    old_status: Optional[str] = None
     new_status: str
     changed_by_id: int
     notes: Optional[str] = None
@@ -193,7 +193,7 @@ class StatusChangeRequest(BaseModel):
 class PipelineProductResponse(BaseModel):
     """Response for single product with full details"""
     id: int
-    org_id: str
+    org_id: int
     client_id: Optional[int] = None
     assigned_to: int
     asin: str
@@ -216,6 +216,17 @@ class PipelineProductResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @validator("status_history", pre=True)
+    def parse_status_history(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        if v is None:
+            return []
+        return v
+
     class Config:
         from_attributes = True
 
@@ -223,7 +234,7 @@ class PipelineProductResponse(BaseModel):
 class PipelineProductListResponse(BaseModel):
     """Response for product in list (lighter payload)"""
     id: int
-    org_id: str
+    org_id: int
     client_id: Optional[int] = None
     assigned_to: int
     asin: str
