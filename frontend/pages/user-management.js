@@ -78,26 +78,30 @@ export default function UserManagement() {
       const token = localStorage.getItem('ecomera_token');
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      const [usersRes, statsRes, rolesRes, activityRes] = await Promise.all([
-        fetch(`${API_URL}/user-management/users`, { headers }),
-        fetch(`${API_URL}/user-management/stats`, { headers }),
-        fetch(`${API_URL}/user-management/roles`, { headers }),
-        fetch(`${API_URL}/user-management/activity`, { headers }),
+      // Fetch each endpoint individually so one failure does not break the page
+      const safeFetch = async (url) => {
+        try {
+          const res = await fetch(url, { headers });
+          if (!res.ok) return null;
+          return await res.json();
+        } catch { return null; }
+      };
+
+      const [usersData, statsData, rolesData, activityData] = await Promise.all([
+        safeFetch(`${API_URL}/user-management/users`),
+        safeFetch(`${API_URL}/user-management/stats`),
+        safeFetch(`${API_URL}/user-management/roles`),
+        safeFetch(`${API_URL}/user-management/activity`),
       ]);
 
-      if (!usersRes.ok || !statsRes.ok || !rolesRes.ok || !activityRes.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const usersData = await usersRes.json();
-      const statsData = await statsRes.json();
-      const rolesData = await rolesRes.json();
-      const activityData = await activityRes.json();
-
-      setUsers(Array.isArray(usersData.users) ? usersData.users : []);
-      setStats(statsData);
-      setRoles(Array.isArray(rolesData.roles) ? rolesData.roles : []);
-      setActivity(Array.isArray(activityData.activity) ? activityData.activity : []);
+      setUsers(usersData && Array.isArray(usersData.users) ? usersData.users : []);
+      setStats(statsData ? {
+        totalUsers: statsData.total_users || statsData.totalUsers || 0,
+        activeUsers: statsData.active_users || statsData.activeUsers || 0,
+        byRole: statsData.users_by_role || statsData.byRole || {},
+      } : null);
+      setRoles(rolesData && Array.isArray(rolesData) ? rolesData : []);
+      setActivity(activityData && Array.isArray(activityData.activities) ? activityData.activities : []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -435,18 +439,18 @@ export default function UserManagement() {
                         <span
                           style={{
                             padding: '0.35rem 0.75rem',
-                            backgroundColor: user.active ? colors.success : colors.error,
+                            backgroundColor: user.is_active ? colors.success : colors.error,
                             color: colors.bg,
                             borderRadius: '0.35rem',
                             fontSize: '0.8rem',
                             fontWeight: 'bold',
                           }}
                         >
-                          {user.active ? 'ACTIVE' : 'INACTIVE'}
+                          {user.is_active ? 'ACTIVE' : 'INACTIVE'}
                         </span>
                       </td>
                       <td style={{ padding: '1rem', color: colors.secText, fontSize: '0.9rem' }}>
-                        {new Date(user.createdAt).toLocaleDateString()}
+                        {new Date(user.created_at).toLocaleDateString()}
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -468,7 +472,7 @@ export default function UserManagement() {
                             onClick={() => handleToggleActive(user.id)}
                             style={{
                               padding: '0.35rem 0.75rem',
-                              backgroundColor: user.active ? colors.error : colors.success,
+                              backgroundColor: user.is_active ? colors.error : colors.success,
                               color: colors.bg,
                               border: 'none',
                               borderRadius: '0.35rem',
@@ -477,7 +481,7 @@ export default function UserManagement() {
                               fontWeight: 'bold',
                             }}
                           >
-                            {user.active ? 'Deactivate' : 'Activate'}
+                            {user.is_active ? 'Deactivate' : 'Activate'}
                           </button>
                           <button
                             style={{
