@@ -280,7 +280,7 @@ export default function Clients() {
               <p style={{ color: T.textSec, fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.75rem' }}>Account Manager Workload</p>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 {managers.map((am) => {
-                  const amClients = clients.filter((c) => c.assigned_am === am.id).length;
+                  const amClients = clients.filter((c) => String(c.assigned_am) === String(am.id)).length;
                   return (
                     <div
                       key={am.id}
