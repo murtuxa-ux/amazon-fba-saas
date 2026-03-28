@@ -188,8 +188,8 @@ export default function ReportsPage() {
               <select value={manager} onChange={(e) => setManager(e.target.value)} style={inputStyle}>
                 <option value="">All Managers</option>
                 {managers.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
+                  <option key={m.id || m.name || m} value={m.name || m.username || m}>
+                    {m.name || m.username || m}
                   </option>
                 ))}
               </select>
