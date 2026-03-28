@@ -96,7 +96,7 @@ const ProductsPage = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      setProducts(Array.isArray(data) ? data : []);
+      setProducts(Array.isArray(data) ? data : data.items || data.products || []);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -122,7 +122,7 @@ const ProductsPage = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      setClients(Array.isArray(data) ? data : []);
+      setClients(Array.isArray(data) ? data : data.clients || data.data || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
