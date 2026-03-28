@@ -295,7 +295,7 @@ class ClientPortalUser(Base):
     can_message = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    client = relationship("Client", back_populates="portal_users")
+    client = relationship("Client", backref=backref("portal_users", lazy="dynamic"))
     organization = relationship("Organization", backref=backref("client_portal_users", lazy="dynamic"))
     messages = relationship("ClientMessage", back_populates="portal_user")
 
