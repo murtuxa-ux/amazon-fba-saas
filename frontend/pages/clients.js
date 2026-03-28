@@ -477,7 +477,7 @@ export default function Clients() {
                 </thead>
                 <tbody>
                   {filtered.map((client, idx) => {
-                    const am = managers.find((m) => m.id === client.assigned_am);
+                    const am = managers.find((m) => String(m.id) === String(client.assigned_am));
                     return (
                       <tr
                         key={client.id || idx}
