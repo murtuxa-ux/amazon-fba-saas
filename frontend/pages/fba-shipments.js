@@ -37,7 +37,7 @@ const FBAShipmentsPage = () => {
 
       const [shipmentsRes, dashboardRes] = await Promise.all([
         fetch(`${API_URL}/fba-shipments/`, { headers }),
-        fetch(`${API_URL}/fba-shipments/dashboard`, { headers }),
+        fetch(`${API_URL}/fba-shipments/dashboard/metrics`, { headers }),
       ]);
 
       if (!shipmentsRes.ok || !dashboardRes.ok) throw new Error('Failed to fetch data');
