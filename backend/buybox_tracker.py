@@ -349,7 +349,8 @@ async def remove_asin_tracking(
     asin: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):    """Remove ASIN from tracking."""
+):
+    """Remove ASIN from tracking."""
     try:
         tracker = db.query(BuyBoxTracker).filter(
             BuyBoxTracker.org_id == current_user.org_id,
@@ -569,7 +570,8 @@ async def get_competitor_analysis(
     asin: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):    """
+):
+    """
     Detailed competitor analysis for an ASIN.
 
     Returns:
