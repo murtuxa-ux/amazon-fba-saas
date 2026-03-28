@@ -27,3 +27,26 @@ except Exception as e:
 
 # The 'app' object is now the fully configured FastAPI application
 # with all phases (1-15) loaded
+
+
+# Step 4: Add missing database columns (safe migration)
+@app.on_event("startup")
+def run_migrations():
+    """Add any missing columns to existing database tables."""
+    from database import engine
+    import sqlalchemy
+    _migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP",
+    ]
+    try:
+        with engine.connect() as conn:
+            for sql in _migrations:
+                try:
+                    conn.execute(sqlalchemy.text(sql))
+                    conn.commit()
+                    _log.info(f"Migration OK: {sql[:60]}")
+                except Exception as me:
+                    _log.warning(f"Migration skipped: {me}")
+        _log.info("Database migrations completed")
+    except Exception as e:
+        _log.error(f"Migration error (non-fatal): {e}")
