@@ -156,7 +156,7 @@ export default function AccountHealth() {
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>Account Health Monitor</h1>
-          <p style={{ color: colors.secText', margin: '0.5rem 0 0 0' }}>
+          <p style={{ color: colors.secText, margin: '0.5rem 0 0 0' }}>
             Track seller account health and suspension risk
           </p>
         </div>
