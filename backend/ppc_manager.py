@@ -120,7 +120,7 @@ class CampaignCreateSchema(BaseModel):
     """Schema for creating a new campaign."""
 
     campaign_name: str = Field(..., min_length=1, max_length=255)
-    campaign_type: str = Field(..., regex="^(SP|SB|SD)$")
+    campaign_type: str = Field(..., pattern="^(SP|SB|SD)$")
     account_id: Optional[int] = None
     daily_budget: float = Field(..., gt=0)
     start_date: datetime
@@ -143,7 +143,7 @@ class CampaignUpdateSchema(BaseModel):
     """Schema for updating a campaign."""
 
     campaign_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    status: Optional[str] = Field(None, regex="^(active|paused|archived)$")
+    status: Optional[str] = Field(None, pattern="^(active|paused|archived)$")
     daily_budget: Optional[float] = Field(None, gt=0)
     end_date: Optional[datetime] = None
 
@@ -160,7 +160,7 @@ class KeywordCreateSchema(BaseModel):
     """Schema for adding keywords to a campaign."""
 
     keyword_text: str = Field(..., min_length=1, max_length=255)
-    match_type: str = Field(..., regex="^(exact|phrase|broad)$")
+    match_type: str = Field(..., pattern="^(exact|phrase|broad)$")
     bid: float = Field(..., gt=0)
 
     class Config:
@@ -444,8 +444,8 @@ def get_mock_keyword_harvesting() -> List[KeywordHarvestSchema]:
 def list_campaigns(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    status: Optional[str] = Query(None, regex="^(active|paused|archived)$"),
-    campaign_type: Optional[str] = Query(None, regex="^(SP|SB|SD)$"),
+    status: Optional[str] = Query(None, pattern="^(active|paused|archived)$"),
+    campaign_type: Optional[str] = Query(None, pattern="^(SP|SB|SD)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
 ) -> List[CampaignListSchema]:
