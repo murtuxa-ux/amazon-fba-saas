@@ -268,9 +268,8 @@ def calculate_health_score(
     )
 
     score = max(0, min(100, score - total_penalty))
-    return int(score)==================================
-# HELPER FUNCTIONS
-# =====================================================================
+    return int(score)
+
 
 def determine_account_status(health_score: int, risk_level: RiskLevel) -> AccountStatus:
     """Determine account status based on health score and risk level."""
@@ -603,6 +602,7 @@ def update_violation(
         logger.error(f"Error updating violation: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update violation")
 
+
 @router.get("/risk-assessment", response_model=RiskAssessment)
 def get_risk_assessment(
     current_user: User = Depends(get_current_user),
@@ -873,129 +873,6 @@ def get_benchmarks(
             BenchmarkMetric(
                 metric_name="Order Defect Rate (%)",
                 current_value=latest_snapshot.odr_rate,
-                target_threshold=AMAZON_THRESHOLDS["odr_rate"]["target"],
-                critical_threshold=AMAZON_THRESHOLDS["odr_rate"]["critical"],
-                status=odr_status,
-            )
-        )
-
-        # Late Shipment Rate Benchmark
-        late_status = MetricStatus.PASS
-        if latest_snapshot.late_shipment_rate > AMAZON_THRESHOLDS["late_shipment_rate"]["critical"]:
-            late_status = MetricStatus.FAIL
-        elif latest_snapshot.late_shipment_rate > AMAZON_THRESHOLDS["late_shipment_rate"]["target"]:
-            late_status = MetricStatus.WARNING
-
-        metrics.append(
-            BenchmarkMetric(
-                metric_name="Late Shipment Rate (%)",
-                current_value=latest_snapshot.late_shipment_rate,
-                target_threshold=AMAZON_THRESHOLDS["late_shipment_rate"]["target"],
-                critical_threshold=AMAZON_THRESHOLDS["late_shipment_rate"]["critical"],
-                status=late_status,
-            )
-        )
-        # IP Complaints Benchmark
-        ip_status = MetricStatus.PASS
-        if latest_snapshot.ip_complaints_count >= AMAZON_THRESHOLDS["ip_complaints"]["critical"]:
-            ip_status = MetricStatus.FAIL
-        elif latest_snapshot.ip_complaints_count > AMAZON_THRESHOLDS["ip_complaints"]["target"]:
-            ip_status = MetricStatus.WARNING
-
-        metrics.append(
-            BenchmarkMetric(
-                metric_name="IP Complaints Count",
-                current_value=latest_snapshot.ip_complaints_count,
-                target_threshold=AMAZON_THRESHOLDS["ip_complaints"]["target"],
-                critical_threshold=AMAZON_THRESHOLDS["ip_complaints"]["critical"],
-                status=ip_status,
-            )
-        )
-
-        # Listing Violations Benchmark
-        listing_status = MetricStatus.PASS
-        if latest_snapshot.listing_violations_count >= AMAZON_THRESHOLDS["listing_violations"]["critical"]:
-            listing_status = MetricStatus.FAIL
-        elif latest_snapshot.listing_violations_count > AMAZON_THRESHOLDS["listing_violations"]["target"]:
-            listing_status = MetricStatus.WARNING
-
-        metrics.append(
-            BenchmarkMetric(
-                metric_name="Listing Violations Count",
-                current_value=latest_snapshot.listing_violations_count,
-                target_threshold=AMAZON_THRESHOLDS["listing_violations"]["target"],
-                critical_threshold=AMAZON_THRESHOLDS["listing_violations"]["critical"],
-                status=listing_status,
-            )
-        )
-
-        # Determine overall status
-        fail_count = sum(1 for m in metrics if m.status == MetricStatus.FAIL)
-        warning_count = sum(1 for m in metrics if m.status == MetricStatus.WARNING)
-
-        if fail_count > 0:
-            overall_status = AccountStatus.CRITICAL
-        elif warning_count > 0:
-            overall_status = AccountStatus.AT_RISK
-        else:
-            overall_status = AccountStatus.HEALTHY
-
-        return BenchmarkComparison(metrics=metrics, overall_status=overall_status)
-
-    except Exception as e:
-        logger.error(f"Error getting benchmarks: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve benchmarks")
-
-
-@router.post("/snapshot", response_model=SnapshotResponse)
-def take_snapshot(
-    request: SnapshotRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Take a point-in-time snapshot of account health for historical tracking.
-    """
-    try:
-        # In production, fetch real metrics from Amazon API
-        # For now, creating a snapshot with default values
-        health_score = 85  # Would be calculated from real metrics
-        risk_level = RiskLevel.LOW
-        account_status = determine_account_status(health_score, risk_level)
-
-        snapshot = AccountHealthSnapshot(
-            org_id=current_user.org_id,
-            account_id=request.account_id,
-            health_score=health_score,
-            odr_rate=0.8,
-            late_shipment_rate=1.2,
-            valid_tracking_rate=98.5,
-            policy_violations_count=0,
-            ip_complaints_count=0,
-            listing_violations_count=0,
-            stranded_inventory_count=5,
-            risk_level=risk_level,
-            snapshot_date=datetime.utcnow(),
-            created_at=datetime.utcnow(),
-        )
-
-        db.add(snapshot)
-        db.commit()
-        db.refresh(snapshot)
-
-        logger.info(f"Created snapshot {snapshot.id} for org {current_user.org_id}")
-
-        return SnapshotResponse(
-            snapshot_id=snapshot.id,
-            snapshot_date=snapshot.snapshot_date,
-            health_score=snapshot.health_score,
-            account_status=account_status,
-        )
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error taking snapshot: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to take snapshot")shot.odr_rate,
                 target_threshold=AMAZON_THRESHOLDS["odr_rate"]["target"],
                 critical_threshold=AMAZON_THRESHOLDS["odr_rate"]["critical"],
                 status=odr_status,
