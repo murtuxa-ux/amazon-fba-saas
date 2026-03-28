@@ -83,14 +83,14 @@ export default function Clients() {
 
       if (clientRes.ok) {
         const clientData = await clientRes.json();
-        setClients(Array.isArray(clientData) ? clientData : clientData.data || []);
+        setClients(Array.isArray(clientData) ? clientData : clientData.clients || clientData.data || []);
       }
 
       if (usersRes.ok) {
         const userData = await usersRes.json();
         const amData = Array.isArray(userData)
-          ? userData.filter((u) => u.role === 'account_manager' || u.role === 'admin')
-          : userData.data?.filter((u) => u.role === 'account_manager' || u.role === 'admin') || [];
+          ? userData.filter((u) => u.role === 'account_manager' || u.role === 'admin' || u.role === 'manager' || u.role === 'owner')
+          : userData.data?.filter((u) => u.role === 'account_manager' || u.role === 'admin' || u.role === 'manager' || u.role === 'owner') || [];
         setManagers(amData);
       }
     } catch (error) {
