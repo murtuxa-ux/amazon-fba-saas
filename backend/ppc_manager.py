@@ -1,4 +1,572 @@
-"""\nAmazon PPC & Ads Manager Module\nHandles Sponsored Products (SP), Sponsored Brands (SB), and Sponsored Display (SD) campaigns\nfor the Ecom Era FBA Wholesale SaaS platform.\n\nThis module provides endpoints for:\n- Campaign CRUD operations with org-level isolation\n- Keyword and ad group management\n- Performance metrics aggregation and analysis\n- AI-powered bid optimization suggestions\n- Keyword harvesting recommendations based on search term reports\n"""\n\nimport logging\nfrom datetime import datetime, timedelta\nfrom typing import List, Optional\n\nfrom fastapi import APIRouter, Depends, HTTPException, Query, status\nfrom pydantic import BaseModel, Field\nfrom sqlalchemy import func, text\nfrom sqlalchemy.orm import Session\n\nfrom auth import get_current_user, require_role\nfrom database import get_db\nfrom models import User, Organization, PPCCampaign, PPCKeyword, PPCAdGroup\n\n# Configure logging\nlogger = logging.getLogger(__name__)\n\n# Router configuration\nrouter = APIRouter(prefix=\"/ppc\", tags=[\"ppc\"])\n\n\n# ============================================================================\n# Pydantic Models (Request/Response Schemas)\n# ============================================================================\n\nclass KeywordSchema(BaseModel):\n    \"\"\"Schema for PPC keyword data.\"\"\"\n\n    id: int\n    campaign_id: int\n    keyword_text: str\n    match_type: str  # exact, phrase, broad\n    bid: float\n    impressions: int\n    clicks: int\n    spend: float\n    sales: float\n    acos: float\n    status: str  # active, paused, archived\n    created_at: datetime\n\n    class Config:\n        from_attributes = True\n\n\nclass AdGroupSchema(BaseModel):\n    \"\"\"Schema for PPC ad group data.\"\"\"\n\n    id: int\n    campaign_id: int\n    ad_group_name: str\n    default_bid: float\n    status: str  # active, paused, archived\n    created_at: datetime\n\n    class Config:\n        from_attributes = True\n\n\nclass CampaignDetailSchema(BaseModel):\n    \"\"\"Detailed campaign response including keywords and ad groups.\"\"\"\n\n    id: int\n    org_id: int\n    account_id: Optional[int] = None\n    campaign_name: str\n    campaign_type: str  # SP, SB, SD\n    status: str  # active, paused, archived\n    daily_budget: float\n    total_spend: float\n    total_sales: float\n    acos: float\n    impressions: int\n    clicks: int\n    orders: int\n    start_date: datetime\n    end_date: Optional[datetime] = None\n    created_at: datetime\n    keywords: List[KeywordSchema] = []\n    ad_groups: List[AdGroupSchema] = []\n\n    class Config:\n        from_attributes = True\n\n\nclass CampaignListSchema(BaseModel):\n    \"\"\"Campaign response for list endpoints.\"\"\"\n\n    id: int\n    org_id: int\n    campaign_name: str\n    campaign_type: str\n    status: str\n    daily_budget: float\n    total_spend: float\n    total_sales: float\n    acos: float\n    impressions: int\n    clicks: int\n    orders: int\n    created_at: datetime\n\n    class Config:\n        from_attributes = True\n\n\nclass CampaignCreateSchema(BaseModel):\n    \"\"\"Schema for creating a new campaign.\"\"\"\n\n    campaign_name: str = Field(..., min_length=1, max_length=255)\n    campaign_type: str = Field(..., regex=\"^(SP|SB|SD)$\")\n    account_id: Optional[int] = None\n    daily_budget: float = Field(..., gt=0)\n    start_date: datetime\n    end_date: Optional[datetime] = None\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"campaign_name\": \"Summer Sale Campaign\",\n                \"campaign_type\": \"SP\",\n                \"account_id\": 1,\n                \"daily_budget\": 50.0,\n                \"start_date\": \"2026-03-28T00:00:00\",\n                \"end_date\": \"2026-06-30T00:00:00\",\n            }\n        }\n\n\nclass CampaignUpdateSchema(BaseModel):\n    \"\"\"Schema for updating a campaign.\"\"\"\n\n    campaign_name: Optional[str] = Field(None, min_length=1, max_length=255)\n    status: Optional[str] = Field(None, regex=\"^(active|paused|archived)$\")\n    daily_budget: Optional[float] = Field(None, gt=0)\n    end_date: Optional[datetime] = None\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"status\": \"paused\",\n                \"daily_budget\": 75.0,\n            }\n        }\n\n\nclass KeywordCreateSchema(BaseModel):\n    \"\"\"Schema for adding keywords to a campaign.\"\"\"\n\n    keyword_text: str = Field(..., min_length=1, max_length=255)\n    match_type: str = Field(..., regex=\"^(exact|phrase|broad)$\")\n    bid: float = Field(..., gt=0)\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"keyword_text\": \"wireless headphones\",\n                \"match_type\": \"phrase\",\n                \"bid\": 0.85,\n            }\n        }\n\n\nclass MetricsSchema(BaseModel):\n    \"\"\"Schema for PPC performance metrics.\"\"\"\n\n    total_spend: float\n    total_sales: float\n    total_impressions: int\n    total_clicks: int\n    total_orders: int\n    acos: float  # Advertising Cost of Sales\n    tacos: float  # Total Advertising Cost of Sales\n    roas: float  # Return on Ad Spend\n    ctr: float  # Click-through rate\n    cpc: float  # Cost per click\n    ctr_percentage: float\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"total_spend\": 5000.0,\n                \"total_sales\": 25000.0,\n                \"total_impressions\": 150000,\n                \"total_clicks\": 3000,\n                \"total_orders\": 150,\n                \"acos\": 0.20,\n                \"tacos\": 0.25,\n                \"roas\": 5.0,\n                \"ctr\": 0.02,\n                \"cpc\": 1.67,\n                \"ctr_percentage\": 2.0,\n            }\n        }\n\n\nclass TimeSeriesMetricSchema(BaseModel):\n    \"\"\"Schema for time-series campaign metrics.\"\"\"\n\n    date: str\n    spend: float\n    sales: float\n    impressions: int\n    clicks: int\n    orders: int\n    acos: float\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"date\": \"2026-03-28\",\n                \"spend\": 100.0,\n                \"sales\": 500.0,\n                \"impressions\": 5000,\n                \"clicks\": 150,\n                \"orders\": 5,\n                \"acos\": 0.20,\n            }\n        }\n\n\nclass BidOptimizationSchema(BaseModel):\n    \"\"\"Schema for AI-powered bid optimization suggestions.\"\"\"\n\n    keyword_id: int\n    keyword_text: str\n    current_bid: float\n    suggested_bid: float\n    bid_change_percentage: float\n    reason: str\n    expected_impact: str\n    confidence_level: str  # high, medium, low\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"keyword_id\": 1,\n                \"keyword_text\": \"wireless headphones\",\n                \"current_bid\": 0.85,\n                \"suggested_bid\": 0.95,\n                \"bid_change_percentage\": 11.76,\n                \"reason\": \"ACoS above target (28% vs 25% target)\",\n                \"expected_impact\": \"Increase in impressions and clicks\",\n                \"confidence_level\": \"high\",\n            }\n        }\n\n\nclass KeywordHarvestSchema(BaseModel):\n    \"\"\"Schema for keyword harvesting suggestions.\"\"\"\n\n    keyword_text: str\n    match_type: str\n    estimated_monthly_volume: int\n    estimated_cpc: float\n    relevance_score: float  # 0-1\n    reason: str\n    recommendation: str  # add, monitor, skip\n\n    class Config:\n        json_schema_extra = {\n            \"example\": {\n                \"keyword_text\": \"best wireless headphones\",\n                \"match_type\": \"phrase\",\n                \"estimated_monthly_volume\": 1500,\n                \"estimated_cpc\": 0.92,\n                \"relevance_score\": 0.87,\n                \"reason\": \"High volume, strong conversion history\",\n                \"recommendation\": \"add\",\n            }\n        }\n\n\n# ============================================================================\n# Helper Functions\n# ============================================================================\n\ndef calculate_metrics(\n    total_spend: float,\n    total_sales: float,\n    total_impressions: int,\n    total_clicks: int,\n    total_orders: int,\n) -> tuple:\n    \"\"\"\n    Calculate key PPC metrics.\n\n    Args:\n        total_spend: Total advertising spend\n        total_sales: Total sales attributed to ads\n        total_impressions: Total ad impressions\n        total_clicks: Total ad clicks\n        total_orders: Total orders from ads\n\n    Returns:\n        Tuple of (acos, tacos, roas, ctr, cpc, ctr_percentage)\n    \"\"\"\n    acos = (total_spend / total_sales * 100) if total_sales > 0 else 0.0\n    tacos = acos  # Simplified: in production, would include organic sales\n    roas = (total_sales / total_spend) if total_spend > 0 else 0.0\n    ctr = (total_clicks / total_impressions) if total_impressions > 0 else 0.0\n    cpc = (total_spend / total_clicks) if total_clicks > 0 else 0.0\n    ctr_percentage = ctr * 100\n\n    return acos, tacos, roas, ctr, cpc, ctr_percentage\n\n\ndef get_mock_ai_optimizations(\n    campaign: PPCCampaign, keywords: List[PPCKeyword], acos_target: float = 0.25\n) -> List[BidOptimizationSchema]:\n    \"\"\"\n    Generate mock AI-powered bid optimization suggestions.\n\n    In production, this would integrate with machine learning models or\n    vendor APIs (e.g., Amazon Advertising API for automated bid optimization).\n\n    Args:\n        campaign: The PPC campaign object\n        keywords: List of keywords in the campaign\n        acos_target: Target ACoS (default 25%)\n\n    Returns:\n        List of BidOptimizationSchema objects with suggested bid adjustments\n    \"\"\"\n    suggestions = []\n\n    for keyword in keywords:\n        if keyword.status == \"archived\" or keyword.impressions == 0:\n            continue\n\n        current_bid = keyword.bid\n        keyword_acos = keyword.acos\n\n        # Generate suggestion based on ACoS comparison\n        if keyword_acos > acos_target:\n            # ACoS too high, reduce bid\n            reduction_factor = (keyword_acos - acos_target) / keyword_acos\n            suggested_bid = max(current_bid * (1 - reduction_factor * 0.5), 0.10)\n            reason = f\"ACoS above target ({keyword_acos:.1%} vs {acos_target:.1%} target)\"\n            expected_impact = \"Reduction in spend with acceptable click reduction\"\n            confidence = \"high\" if keyword.clicks > 50 else \"medium\"\n        elif keyword_acos < acos_target * 0.7:\n            # ACoS well below target, increase bid for volume\n            increase_factor = (acos_target - keyword_acos) / acos_target\n            suggested_bid = current_bid * (1 + increase_factor * 0.3)\n            reason = f\"ACoS well below target ({keyword_acos:.1%}), opportunity for volume growth\"\n            expected_impact = \"Increase in impressions and clicks\"\n            confidence = \"high\"\n        else:\n            # ACoS is close to target\n            suggested_bid = current_bid\n            reason = \"ACoS within acceptable range\"\n            expected_impact = \"Maintain current performance\"\n            confidence = \"medium\"\n\n        bid_change_pct = ((suggested_bid - current_bid) / current_bid * 100) if current_bid > 0 else 0\n        suggestions.append(\n            BidOptimizationSchema(\n                keyword_id=keyword.id,\n                keyword_text=keyword.keyword_text,\n                current_bid=round(current_bid, 2),\n                suggested_bid=round(suggested_bid, 2),\n                bid_change_percentage=round(bid_change_pct, 2),\n                reason=reason,\n                expected_impact=expected_impact,\n                confidence_level=confidence,\n            )\n        )\n\n    return suggestions\n\n\ndef get_mock_keyword_harvesting() -> List[KeywordHarvestSchema]:\n    \"\"\"\n    Generate mock keyword harvesting suggestions based on search term reports.\n\n    In production, this would analyze actual search term report data from\n    Amazon Advertising API to identify high-performing keywords not yet targeted.\n\n    Returns:\n        List of KeywordHarvestSchema objects with suggested keywords to add\n    \"\"\"\n    suggestions = [\n        KeywordHarvestSchema(\n            keyword_text=\"premium wireless earbuds\",\n            match_type=\"phrase\",\n            estimated_monthly_volume=2500,\n            estimated_cpc=1.15,\n            relevance_score=0.92,\n            reason=\"Strong historical conversion, high search volume\",\n            recommendation=\"add\",\n        ),\n        KeywordHarvestSchema(\n            keyword_text=\"noise cancelling headphones\",\n            match_type=\"phrase\",\n            estimated_monthly_volume=1800,\n            estimated_cpc=0.95,\n            relevance_score=0.85,\n            reason=\"Related to top-performing keywords, good ACoS potential\",\n            recommendation=\"add\",\n        ),\n        KeywordHarvestSchema(\n            keyword_text=\"budget headphones\",\n            match_type=\"broad\",\n            estimated_monthly_volume=800,\n            estimated_cpc=0.45,\n            relevance_score=0.72,\n            reason=\"High volume, lower cost per click\",\n            recommendation=\"monitor\",\n        ),\n        KeywordHarvestSchema(\n            keyword_text=\"knockoff beats\",\n            match_type=\"phrase\",\n            estimated_monthly_volume=150,\n            estimated_cpc=0.32,\n            relevance_score=0.15,\n            reason=\"Brand conflict concerns, low conversion likelihood\",\n            recommendation=\"skip\",\n        ),\n    ]\n\n    return suggestions\n\n\n# ============================================================================\n# Endpoints\n# ============================================================================\n\n\n@router.get(\"/campaigns\", response_model=List[CampaignListSchema])\ndef list_campaigns(\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user),\n    status: Optional[str] = Query(None, regex=\"^(active|paused|archived)$\"),\n    campaign_type: Optional[str] = Query(None, regex=\"^(SP|SB|SD)$\"),\n    skip: int = Query(0, ge=0),\n    limit: int = Query(50, ge=1, le=500),\n) -> List[CampaignListSchema]:\n    \"\"\"\n    List all PPC campaigns for the organization with optional filters.\n\n    Query Parameters:\n    - status: Filter by campaign status (active, paused, archived)\n    - campaign_type: Filter by campaign type (SP, SB, SD)\n    - skip: Number of records to skip (pagination)\n    - limit: Maximum records to return (default 50, max 500)\n\n    Returns:\n        List of campaigns for the organization\n    \"\"\"\n    logger.info(f\"Fetching campaigns for org {current_user.org_id}\")\n\n    query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id)\n\n    if status:\n        query = query.filter(PPCCampaign.status == status)\n\n    if campaign_type:\n        query = query.filter(PPCCampaign.campaign_type == campaign_type)\n\n    campaigns = query.offset(skip).limit(limit).all()\n\n    logger.info(f\"Retrieved {len(campaigns)} campaigns for org {current_user.org_id}\")\n    return campaigns\n\n\n@router.post(\"/campaigns\", response_model=CampaignDetailSchema, status_code=status.HTTP_201_CREATED)\ndef create_campaign(\n    payload: CampaignCreateSchema,\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user),\n) -> CampaignDetailSchema:\n    \"\"\"\n    Create a new PPC campaign.\n\n    Request Body:\n    - campaign_name: Name of the campaign\n    - campaign_type: Type of campaign (SP/SB/SD)\n    - account_id: Optional Amazon account ID\n    - daily_budget: Daily budget in USD\n    - start_date: Campaign start date\n    - end_date: Optional campaign end date\n\n    Returns:\n        The created campaign with details\n    \"\"\"\n    logger.info(f\"Creating campaign '{payload.campaign_name}' for org {current_user.org_id}\")\n\n    # Validate end_date is after start_date\n    if payload.end_date and payload.end_date <= payload.start_date:\n        raise HTTPException(\n            status_code=status.HTTP_400_BAD_REQUEST,\n            detail=\"end_date must be after start_date\",\n        )\n\n    new_campaign = PPCCampaign(\n        org_id=current_user.org_id,\n        account_id=payload.account_id,\n        campaign_name=payload.campaign_name,\n        campaign_type=payload.campaign_type,\n        status=\"active\",\n        daily_budget=payload.daily_budget,\n        total_spend=0.0,\n        total_sales=0.0,\n        acos=0.0,\n        impressions=0,\n        clicks=0,\n        orders=0,\n        start_date=payload.start_date,\n        end_date=payload.end_date,\n        created_at=datetime.utcnow(),\n    )\n\n    db.add(new_campaign)\n    db.commit()\n    db.refresh(new_campaign)\n\n    logger.info(f\"Campaign {new_campaign.id} created successfully\")\n    return new_campaign\n\n\n@router.get(\"/campaigns/{campaign_id}\", response_model=CampaignDetailSchema)\ndef get_campaign(\n    campaign_id: int,\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user),\n) -> CampaignDetailSchema:\n    \"\"\"\n    Get detailed information about a specific campaign including keywords and ad groups.\n\n    Path Parameters:\n    - campaign_id: The ID of the campaign\n\n    Returns:\n        Campaign details with associated keywords and ad groups\n    \"\"\"\n    logger.info(f\"Fetching campaign {campaign_id} for org {current_user.org_id}\")\n\n    campaign = (\n        db.query(PPCCampaign)\n        .filter(\n            PPCCampaign.id == campaign_id,\n            PPCCampaign.org_id == current_user.org_id,\n        )\n        .first()\n    )\n\n    if not campaign:\n        logger.warning(f\"Campaign {campaign_id} not found for org {current_user.org_id}\")\n        raise HTTPException(\n            status_code=status.HTTP_404_NOT_FOUND,\n            detail=\"Campaign not found\",\n        )\n\n    return campaign\n
+"""
+Amazon PPC & Ads Manager Module
+Handles Sponsored Products (SP), Sponsored Brands (SB), and Sponsored Display (SD) campaigns
+for the Ecom Era FBA Wholesale SaaS platform.
+
+This module provides endpoints for:
+- Campaign CRUD operations with org-level isolation
+- Keyword and ad group management
+- Performance metrics aggregation and analysis
+- AI-powered bid optimization suggestions
+- Keyword harvesting recommendations based on search term reports
+"""
+
+import logging
+from datetime import datetime, timedelta
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, text
+from sqlalchemy.orm import Session
+
+from auth import get_current_user, require_role
+from database import get_db
+from models import User, Organization, PPCCampaign, PPCKeyword, PPCAdGroup
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Router configuration
+router = APIRouter(prefix="/ppc", tags=["ppc"])
+
+
+# ============================================================================
+# Pydantic Models (Request/Response Schemas)
+# ============================================================================
+
+class KeywordSchema(BaseModel):
+    """Schema for PPC keyword data."""
+
+    id: int
+    campaign_id: int
+    keyword_text: str
+    match_type: str  # exact, phrase, broad
+    bid: float
+    impressions: int
+    clicks: int
+    spend: float
+    sales: float
+    acos: float
+    status: str  # active, paused, archived
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdGroupSchema(BaseModel):
+    """Schema for PPC ad group data."""
+
+    id: int
+    campaign_id: int
+    ad_group_name: str
+    default_bid: float
+    status: str  # active, paused, archived
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignDetailSchema(BaseModel):
+    """Detailed campaign response including keywords and ad groups."""
+
+    id: int
+    org_id: int
+    account_id: Optional[int] = None
+    campaign_name: str
+    campaign_type: str  # SP, SB, SD
+    status: str  # active, paused, archived
+    daily_budget: float
+    total_spend: float
+    total_sales: float
+    acos: float
+    impressions: int
+    clicks: int
+    orders: int
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    created_at: datetime
+    keywords: List[KeywordSchema] = []
+    ad_groups: List[AdGroupSchema] = []
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignListSchema(BaseModel):
+    """Campaign response for list endpoints."""
+
+    id: int
+    org_id: int
+    campaign_name: str
+    campaign_type: str
+    status: str
+    daily_budget: float
+    total_spend: float
+    total_sales: float
+    acos: float
+    impressions: int
+    clicks: int
+    orders: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignCreateSchema(BaseModel):
+    """Schema for creating a new campaign."""
+
+    campaign_name: str = Field(..., min_length=1, max_length=255)
+    campaign_type: str = Field(..., regex="^(SP|SB|SD)$")
+    account_id: Optional[int] = None
+    daily_budget: float = Field(..., gt=0)
+    start_date: datetime
+    end_date: Optional[datetime] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "campaign_name": "Summer Sale Campaign",
+                "campaign_type": "SP",
+                "account_id": 1,
+                "daily_budget": 50.0,
+                "start_date": "2026-03-28T00:00:00",
+                "end_date": "2026-06-30T00:00:00",
+            }
+        }
+
+
+class CampaignUpdateSchema(BaseModel):
+    """Schema for updating a campaign."""
+
+    campaign_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    status: Optional[str] = Field(None, regex="^(active|paused|archived)$")
+    daily_budget: Optional[float] = Field(None, gt=0)
+    end_date: Optional[datetime] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "paused",
+                "daily_budget": 75.0,
+            }
+        }
+
+
+class KeywordCreateSchema(BaseModel):
+    """Schema for adding keywords to a campaign."""
+
+    keyword_text: str = Field(..., min_length=1, max_length=255)
+    match_type: str = Field(..., regex="^(exact|phrase|broad)$")
+    bid: float = Field(..., gt=0)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "keyword_text": "wireless headphones",
+                "match_type": "phrase",
+                "bid": 0.85,
+            }
+        }
+
+
+class MetricsSchema(BaseModel):
+    """Schema for PPC performance metrics."""
+
+    total_spend: float
+    total_sales: float
+    total_impressions: int
+    total_clicks: int
+    total_orders: int
+    acos: float  # Advertising Cost of Sales
+    tacos: float  # Total Advertising Cost of Sales
+    roas: float  # Return on Ad Spend
+    ctr: float  # Click-through rate
+    cpc: float  # Cost per click
+    ctr_percentage: float
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total_spend": 5000.0,
+                "total_sales": 25000.0,
+                "total_impressions": 150000,
+                "total_clicks": 3000,
+                "total_orders": 150,
+                "acos": 0.20,
+                "tacos": 0.25,
+                "roas": 5.0,
+                "ctr": 0.02,
+                "cpc": 1.67,
+                "ctr_percentage": 2.0,
+            }
+        }
+
+
+class TimeSeriesMetricSchema(BaseModel):
+    """Schema for time-series campaign metrics."""
+
+    date: str
+    spend: float
+    sales: float
+    impressions: int
+    clicks: int
+    orders: int
+    acos: float
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "date": "2026-03-28",
+                "spend": 100.0,
+                "sales": 500.0,
+                "impressions": 5000,
+                "clicks": 150,
+                "orders": 5,
+                "acos": 0.20,
+            }
+        }
+
+
+class BidOptimizationSchema(BaseModel):
+    """Schema for AI-powered bid optimization suggestions."""
+
+    keyword_id: int
+    keyword_text: str
+    current_bid: float
+    suggested_bid: float
+    bid_change_percentage: float
+    reason: str
+    expected_impact: str
+    confidence_level: str  # high, medium, low
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "keyword_id": 1,
+                "keyword_text": "wireless headphones",
+                "current_bid": 0.85,
+                "suggested_bid": 0.95,
+                "bid_change_percentage": 11.76,
+                "reason": "ACoS above target (28% vs 25% target)",
+                "expected_impact": "Increase in impressions and clicks",
+                "confidence_level": "high",
+            }
+        }
+
+
+class KeywordHarvestSchema(BaseModel):
+    """Schema for keyword harvesting suggestions."""
+
+    keyword_text: str
+    match_type: str
+    estimated_monthly_volume: int
+    estimated_cpc: float
+    relevance_score: float  # 0-1
+    reason: str
+    recommendation: str  # add, monitor, skip
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "keyword_text": "best wireless headphones",
+                "match_type": "phrase",
+                "estimated_monthly_volume": 1500,
+                "estimated_cpc": 0.92,
+                "relevance_score": 0.87,
+                "reason": "High volume, strong conversion history",
+                "recommendation": "add",
+            }
+        }
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def calculate_metrics(
+    total_spend: float,
+    total_sales: float,
+    total_impressions: int,
+    total_clicks: int,
+    total_orders: int,
+) -> tuple:
+    """
+    Calculate key PPC metrics.
+
+    Args:
+        total_spend: Total advertising spend
+        total_sales: Total sales attributed to ads
+        total_impressions: Total ad impressions
+        total_clicks: Total ad clicks
+        total_orders: Total orders from ads
+
+    Returns:
+        Tuple of (acos, tacos, roas, ctr, cpc, ctr_percentage)
+    """
+    acos = (total_spend / total_sales * 100) if total_sales > 0 else 0.0
+    tacos = acos  # Simplified: in production, would include organic sales
+    roas = (total_sales / total_spend) if total_spend > 0 else 0.0
+    ctr = (total_clicks / total_impressions) if total_impressions > 0 else 0.0
+    cpc = (total_spend / total_clicks) if total_clicks > 0 else 0.0
+    ctr_percentage = ctr * 100
+
+    return acos, tacos, roas, ctr, cpc, ctr_percentage
+
+
+def get_mock_ai_optimizations(
+    campaign: PPCCampaign, keywords: List[PPCKeyword], acos_target: float = 0.25
+) -> List[BidOptimizationSchema]:
+    """
+    Generate mock AI-powered bid optimization suggestions.
+
+    In production, this would integrate with machine learning models or
+    vendor APIs (e.g., Amazon Advertising API for automated bid optimization).
+
+    Args:
+        campaign: The PPC campaign object
+        keywords: List of keywords in the campaign
+        acos_target: Target ACoS (default 25%)
+
+    Returns:
+        List of BidOptimizationSchema objects with suggested bid adjustments
+    """
+    suggestions = []
+
+    for keyword in keywords:
+        if keyword.status == "archived" or keyword.impressions == 0:
+            continue
+
+        current_bid = keyword.bid
+        keyword_acos = keyword.acos
+
+        # Generate suggestion based on ACoS comparison
+        if keyword_acos > acos_target:
+            # ACoS too high, reduce bid
+            reduction_factor = (keyword_acos - acos_target) / keyword_acos
+            suggested_bid = max(current_bid * (1 - reduction_factor * 0.5), 0.10)
+            reason = f"ACoS above target ({keyword_acos:.1%} vs {acos_target:.1%} target)"
+            expected_impact = "Reduction in spend with acceptable click reduction"
+            confidence = "high" if keyword.clicks > 50 else "medium"
+        elif keyword_acos < acos_target * 0.7:
+            # ACoS well below target, increase bid for volume
+            increase_factor = (acos_target - keyword_acos) / acos_target
+            suggested_bid = current_bid * (1 + increase_factor * 0.3)
+            reason = f"ACoS well below target ({keyword_acos:.1%}), opportunity for volume growth"
+            expected_impact = "Increase in impressions and clicks"
+            confidence = "high"
+        else:
+            # ACoS is close to target
+            suggested_bid = current_bid
+            reason = "ACoS within acceptable range"
+            expected_impact = "Maintain current performance"
+            confidence = "medium"
+
+        bid_change_pct = ((suggested_bid - current_bid) / current_bid * 100) if current_bid > 0 else 0
+
+        suggestions.append(
+            BidOptimizationSchema(
+                keyword_id=keyword.id,
+                keyword_text=keyword.keyword_text,
+                current_bid=round(current_bid, 2),
+                suggested_bid=round(suggested_bid, 2),
+                bid_change_percentage=round(bid_change_pct, 2),
+                reason=reason,
+                expected_impact=expected_impact,
+                confidence_level=confidence,
+            )
+        )
+
+    return suggestions
+
+
+def get_mock_keyword_harvesting() -> List[KeywordHarvestSchema]:
+    """
+    Generate mock keyword harvesting suggestions based on search term reports.
+
+    In production, this would analyze actual search term report data from
+    Amazon Advertising API to identify high-performing keywords not yet targeted.
+
+    Returns:
+        List of KeywordHarvestSchema objects with suggested keywords to add
+    """
+    suggestions = [
+        KeywordHarvestSchema(
+            keyword_text="premium wireless earbuds",
+            match_type="phrase",
+            estimated_monthly_volume=2500,
+            estimated_cpc=1.15,
+            relevance_score=0.92,
+            reason="Strong historical conversion, high search volume",
+            recommendation="add",
+        ),
+        KeywordHarvestSchema(
+            keyword_text="noise cancelling headphones",
+            match_type="phrase",
+            estimated_monthly_volume=1800,
+            estimated_cpc=0.95,
+            relevance_score=0.85,
+            reason="Related to top-performing keywords, good ACoS potential",
+            recommendation="add",
+        ),
+        KeywordHarvestSchema(
+            keyword_text="budget headphones",
+            match_type="broad",
+            estimated_monthly_volume=800,
+            estimated_cpc=0.45,
+            relevance_score=0.72,
+            reason="High volume, lower cost per click",
+            recommendation="monitor",
+        ),
+        KeywordHarvestSchema(
+            keyword_text="knockoff beats",
+            match_type="phrase",
+            estimated_monthly_volume=150,
+            estimated_cpc=0.32,
+            relevance_score=0.15,
+            reason="Brand conflict concerns, low conversion likelihood",
+            recommendation="skip",
+        ),
+    ]
+
+    return suggestions
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+
+@router.get("/campaigns", response_model=List[CampaignListSchema])
+def list_campaigns(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    status: Optional[str] = Query(None, regex="^(active|paused|archived)$"),
+    campaign_type: Optional[str] = Query(None, regex="^(SP|SB|SD)$"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+) -> List[CampaignListSchema]:
+    """
+    List all PPC campaigns for the organization with optional filters.
+
+    Query Parameters:
+    - status: Filter by campaign status (active, paused, archived)
+    - campaign_type: Filter by campaign type (SP, SB, SD)
+    - skip: Number of records to skip (pagination)
+    - limit: Maximum records to return (default 50, max 500)
+
+    Returns:
+        List of campaigns for the organization
+    """
+    logger.info(f"Fetching campaigns for org {current_user.org_id}")
+
+    query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id)
+
+    if status:
+        query = query.filter(PPCCampaign.status == status)
+
+    if campaign_type:
+        query = query.filter(PPCCampaign.campaign_type == campaign_type)
+
+    campaigns = query.offset(skip).limit(limit).all()
+
+    logger.info(f"Retrieved {len(campaigns)} campaigns for org {current_user.org_id}")
+    return campaigns
+
+
+@router.post("/campaigns", response_model=CampaignDetailSchema, status_code=status.HTTP_201_CREATED)
+def create_campaign(
+    payload: CampaignCreateSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CampaignDetailSchema:
+    """
+    Create a new PPC campaign.
+
+    Request Body:
+    - campaign_name: Name of the campaign
+    - campaign_type: Type of campaign (SP/SB/SD)
+    - account_id: Optional Amazon account ID
+    - daily_budget: Daily budget in USD
+    - start_date: Campaign start date
+    - end_date: Optional campaign end date
+
+    Returns:
+        The created campaign with details
+    """
+    logger.info(f"Creating campaign '{payload.campaign_name}' for org {current_user.org_id}")
+
+    # Validate end_date is after start_date
+    if payload.end_date and payload.end_date <= payload.start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_date must be after start_date",
+        )
+
+    new_campaign = PPCCampaign(
+        org_id=current_user.org_id,
+        account_id=payload.account_id,
+        campaign_name=payload.campaign_name,
+        campaign_type=payload.campaign_type,
+        status="active",
+        daily_budget=payload.daily_budget,
+        total_spend=0.0,
+        total_sales=0.0,
+        acos=0.0,
+        impressions=0,
+        clicks=0,
+        orders=0,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        created_at=datetime.utcnow(),
+    )
+
+    db.add(new_campaign)
+    db.commit()
+    db.refresh(new_campaign)
+
+    logger.info(f"Campaign {new_campaign.id} created successfully")
+    return new_campaign
+
+
+@router.get("/campaigns/{campaign_id}", response_model=CampaignDetailSchema)
+def get_campaign(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CampaignDetailSchema:
+    """
+    Get detailed information about a specific campaign including keywords and ad groups.
+
+    Path Parameters:
+    - campaign_id: The ID of the campaign
+
+    Returns:
+        Campaign details with associated keywords and ad groups
+    """
+    logger.info(f"Fetching campaign {campaign_id} for org {current_user.org_id}")
+
+    campaign = (
+        db.query(PPCCampaign)
+        .filter(
+            PPCCampaign.id == campaign_id,
+            PPCCampaign.org_id == current_user.org_id,
+        )
+        .first()
+    )
+
+    if not campaign:
+        logger.warning(f"Campaign {campaign_id} not found for org {current_user.org_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found",
+        )
+
+    return campaign
+
 
 @router.put("/campaigns/{campaign_id}", response_model=CampaignDetailSchema)
 def update_campaign(
