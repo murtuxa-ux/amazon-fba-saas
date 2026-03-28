@@ -56,46 +56,20 @@ export default function AdminDashboard() {
 
   // Fetch all data
   const fetchData = async () => {
-    try {
-      const token = localStorage.getItem('ecomera_token');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+    const safeFetch = async (url) => { try { const r = await fetch(url, { headers }); if (!r.ok) return null; return await r.json(); } catch { return null; } };
 
-      // Fetch system status
-      const statusRes = await fetch(`${API_URL}/system/status`, { headers });
-      if (statusRes.ok) {
-        setSystemStatus(await statusRes.json());
-      }
+    const [statusData, metricsData, tasksData, logsData] = await Promise.all([
+      safeFetch(`${API_URL}/system/status`),
+      safeFetch(`${API_URL}/system/metrics`),
+      safeFetch(`${API_URL}/scheduler/tasks`),
+      safeFetch(`${API_URL}/system/logs?limit=50`),
+    ]);
 
-      // Fetch business metrics
-      const metricsRes = await fetch(`${API_URL}/system/metrics`, { headers });
-      if (metricsRes.ok) {
-        setMetrics(await metricsRes.json());
-      }
-
-      // Fetch tasks
-      const tasksRes = await fetch(`${API_URL}/scheduler/tasks`, { headers });
-      if (tasksRes.ok) {
-        setTasks(await tasksRes.json());
-      }
-
-      // Fetch logs (may fail if user lacks admin role - that's OK)
-      try {
-        const logsRes = await fetch(`${API_URL}/system/logs?limit=50`, { headers });
-        if (logsRes.ok) {
-          const logsData = await logsRes.json();
-          setLogs(logsData.logs || []);
-        }
-      } catch (logErr) {
-        console.log('Logs endpoint not available:', logErr.message);
-      }
-
-      setError(null);
-    } catch (err) {
-      setError('Failed to fetch dashboard data: ' + err.message);
-    } finally {
+    if (statusData) setStatus(statusData);
+    if (metricsData) setMetrics(metricsData);
+    if (tasksData) setTasks(Array.isArray(tasksData) ? tasksData : tasksData.tasks || []);
+    if (logsData) setLogs(Array.isArray(logsData) ? logsData : logsData.logs || []);
+    setError(null);
       setLoading(false);
     }
   };
