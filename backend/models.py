@@ -46,6 +46,7 @@ class User(Base):
     avatar = Column(String(10), default="U")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
 
     # Relationships
     organization = relationship("Organization", back_populates="users")
