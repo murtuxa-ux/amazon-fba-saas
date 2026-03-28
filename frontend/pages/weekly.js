@@ -59,12 +59,12 @@ export default function WeeklyPage() {
 
   const fetchManagers = async () => {
     try {
-      const response = await fetch(`${API_URL}/managers`, {
+      const response = await fetch(`${API_URL}/users`, {
         headers: authHeader(),
       });
       if (response.ok) {
         const data = await response.json();
-        setManagers(data.managers || []);
+        setManagers(Array.isArray(data) ? data : data.users || data.managers || []);
       }
     } catch (err) {
       console.error("Failed to fetch managers:", err);
