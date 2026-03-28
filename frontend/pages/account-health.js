@@ -48,27 +48,20 @@ export default function AccountHealth() {
       const token = localStorage.getItem('ecomera_token');
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      const [overviewRes, violationsRes, benchmarksRes, alertsRes] = await Promise.all([
-        fetch(`${API_URL}/account-health/overview`, { headers }),
-        fetch(`${API_URL}/account-health/violations`, { headers }),
-        fetch(`${API_URL}/account-health/benchmarks`, { headers }),
-        fetch(`${API_URL}/account-health/alerts`, { headers }),
+      const safeFetch = async (url) => { try { const r = await fetch(url, { headers }); if (!r.ok) return null; return await r.json(); } catch { return null; } };
+
+      const [overviewData, violationsData, benchmarksData, alertsData] = await Promise.all([
+        safeFetch(`${API_URL}/account-health/overview`),
+        safeFetch(`${API_URL}/account-health/violations`),
+        safeFetch(`${API_URL}/account-health/benchmarks`),
+        safeFetch(`${API_URL}/account-health/alerts`),
       ]);
 
-      if (!overviewRes.ok || !violationsRes.ok || !benchmarksRes.ok || !alertsRes.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const overviewData = await overviewRes.json();
-      const violationsData = await violationsRes.json();
-      const benchmarksData = await benchmarksRes.json();
-      const alertsData = await alertsRes.json();
-
-      setOverview(overviewData);
-      setViolations(Array.isArray(violationsData.violations) ? violationsData.violations : []);
-      setBenchmarks(benchmarksData);
-      setAlerts(Array.isArray(alertsData.alerts) ? alertsData.alerts : []);
-      setError(null);
+      setOverview(overviewData || {});
+      setViolations(violationsData && Array.isArray(violationsData.violations) ? violationsData.violations : []);
+      setBenchmarks(benchmarksData || {});
+      setAlerts(alertsData && Array.isArray(alertsData.alerts) ? alertsData.alerts : []);
+      setError(null)
     } catch (err) {
       setError(err.message);
     } finally {
