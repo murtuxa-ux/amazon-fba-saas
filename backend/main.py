@@ -1,5 +1,5 @@
 """
-Ecom Era FBA SaaS v6.0 — Main Application
+Ecom Era FBA SaaS v6.0 â Main Application
 Multi-tenant, JWT-authenticated API built with FastAPI and PostgreSQL
 """
 
@@ -50,7 +50,7 @@ from kpi_targets import router as kpi_router
 # Stage 7: DWM Reporting System
 from dwm_reporting import router as dwm_router
 
-# Phase 7-11: New modules (safe imports — backend starts even if a module has issues)
+# Phase 7-11: New modules (safe imports â backend starts even if a module has issues)
 import logging as _log
 
 _phase7_routers = {}
@@ -69,7 +69,7 @@ for _mod_name, _router_name, _key in [
         _log.error(f"Failed to import {_mod_name}: {_e}")
         _phase7_routers[_key] = None
 
-# ── App Setup ───────────────────────────────────────────────────────────────────
+# ââ App Setup âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 app = FastAPI(title="Ecom Era FBA Wholesale SaaS", version="7.0")
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -118,17 +118,17 @@ def on_startup():
         Base.metadata.create_all(bind=engine)
         _log.info("Database tables created / verified successfully")
     except Exception as e:
-        _log.error(f"Table creation error (non-fatal — existing tables still work): {e}")
-        # Don't crash the app — existing functionality continues working
+        _log.error(f"Table creation error (non-fatal â existing tables still work): {e}")
+        # Don't crash the app â existing functionality continues working
 
 
-# ── Health Check ────────────────────────────────────────────────────────────────
+# ââ Health Check ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/health")
 def health_check():
     return {"status": "ok", "version": "7.0", "service": "Ecom Era FBA SaaS"}
 
 
-# ── Seed Demo Data (Admin Only) ────────────────────────────────────────────────
+# ââ Seed Demo Data (Admin Only) ââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/seed")
 def seed_demo_data(
     db: Session = Depends(get_db),
@@ -173,7 +173,7 @@ def seed_demo_data(
     return {"status": "seeded", "org": org.name, "users_created": created}
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────────
+# ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 def _now():
     return datetime.utcnow()
 
@@ -190,7 +190,7 @@ def _log_activity(db: Session, user: User, action: str, detail: str = ""):
     db.commit()
 
 
-# ── Request / Response Models ───────────────────────────────────────────────────
+# ââ Request / Response Models âââââââââââââââââââââââââââââââââââââââââââââââââââ
 class LoginInput(BaseModel):
     username: str
     password: str
@@ -311,13 +311,13 @@ class SettingsInput(BaseModel):
     keepa_api_key: str
 
 
-# ── Root ────────────────────────────────────────────────────────────────────────
+# ââ Root ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/")
 def home():
     return {"status": "Ecom Era FBA SaaS V6 running", "version": "6.0"}
 
 
-# ── Auth Routes ─────────────────────────────────────────────────────────────────
+# ââ Auth Routes âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/auth/login")
 def login(data: LoginInput, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == data.username.strip().lower()).first()
@@ -400,7 +400,7 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     }
 
 
-# ── Users (Team Management) ────────────────────────────────────────────────────
+# ââ Users (Team Management) ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/users")
 def list_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     members = db.query(User).filter(User.org_id == user.org_id).all()
@@ -517,7 +517,7 @@ def change_password(
     return {"status": "password changed"}
 
 
-# ── Clients ─────────────────────────────────────────────────────────────────────
+# ââ Clients âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/clients")
 def list_clients(
     status: Optional[str] = None,
@@ -623,7 +623,7 @@ def delete_client(
     return {"removed": 1}
 
 
-# ── Reports & KPIs ──────────────────────────────────────────────────────────────
+# ââ Reports & KPIs ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/reports/summary")
 def reports_summary(
     period: Optional[str] = None,
@@ -734,7 +734,7 @@ def reports_kpi(
     return {"period": p, "targets": kpi_targets, "managers": list(manager_kpi.values())}
 
 
-# ── Settings ────────────────────────────────────────────────────────────────────
+# ââ Settings ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/settings")
 def save_settings(
     data: SettingsInput,
@@ -754,7 +754,7 @@ def get_settings(user: User = Depends(get_current_user), db: Session = Depends(g
     return {"keepa_api_key_set": bool(org and getattr(org, "keepa_api_key", None))}
 
 
-# ── Analyze ─────────────────────────────────────────────────────────────────────
+# ââ Analyze âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/analyze")
 def analyze_product(
     data: ProductInput,
@@ -825,7 +825,7 @@ def list_products(user: User = Depends(get_current_user), db: Session = Depends(
     }
 
 
-# ── Weekly Reports ──────────────────────────────────────────────────────────────
+# ââ Weekly Reports ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/weekly")
 def add_weekly(
     data: WeeklyInput,
@@ -863,7 +863,7 @@ def list_weekly(user: User = Depends(get_current_user), db: Session = Depends(ge
     }
 
 
-# ── Dashboard ───────────────────────────────────────────────────────────────────
+# ââ Dashboard âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/dashboard")
 def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     weeks = get_org_scoped_query(db, user, WeeklyReport).all()
@@ -888,7 +888,7 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
     }
 
 
-# ── Suppliers ───────────────────────────────────────────────────────────────────
+# ââ Suppliers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.post("/suppliers")
 def add_supplier(
     data: SupplierInput,
@@ -924,7 +924,7 @@ def list_suppliers(user: User = Depends(get_current_user), db: Session = Depends
     }
 
 
-# ── Leaderboard ─────────────────────────────────────────────────────────────────
+# ââ Leaderboard âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/leaderboard")
 def leaderboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     weeks = get_org_scoped_query(db, user, WeeklyReport).all()
@@ -947,7 +947,7 @@ def leaderboard(user: User = Depends(get_current_user), db: Session = Depends(ge
     return {"leaderboard": scores}
 
 
-# ── FBA Scout ───────────────────────────────────────────────────────────────────
+# ââ FBA Scout âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 class LookupInput(BaseModel):
     asin: str
@@ -1143,7 +1143,7 @@ def scout_bulk(
     return {"processed": len(results), "errors": len(error_details), "results": results, "error_details": error_details}
 
 
-# ── Activity Feed ───────────────────────────────────────────────────────────────
+# ââ Activity Feed âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @app.get("/activity")
 def get_activity(
     limit: int = 20,
@@ -1165,3 +1165,23 @@ def get_activity(
         }
         for log in logs
     ]
+
+
+# ============================================================================
+# Phase 12-15: Load new models and register routers
+# ============================================================================
+import logging as _p12_logging
+_p12_logger = _p12_logging.getLogger("phase12_15")
+
+try:
+    import models_phase12
+    _p12_logger.info("Phase 12-15 database models loaded successfully")
+except Exception as _p12_e:
+    _p12_logger.error(f"Failed to load Phase 12-15 models: {_p12_e}")
+
+try:
+    import main_patch_phase12
+    _p12_count = main_patch_phase12.register_phase12_routers(app)
+    _p12_logger.info(f"Phase 12-15: {_p12_count} routers registered successfully")
+except Exception as _p12_e:
+    _p12_logger.error(f"Failed to register Phase 12-15 routers: {_p12_e}")
