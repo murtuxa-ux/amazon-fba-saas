@@ -34,32 +34,24 @@ const FBMOrdersPage = () => {
   }, []);
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('ecomera_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+    const token = localStorage.getItem('ecomera_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [ordersRes, dashboardRes, pendingRes] = await Promise.all([
-        fetch(`${API_URL}/fbm-orders/`, { headers }),
-        fetch(`${API_URL}/fbm-orders/dashboard/metrics`, { headers }),
-        fetch(`${API_URL}/fbm-orders/pending`, { headers }),
-      ]);
+    const safeFetch = async (url) => {
+      try { const r = await fetch(url, { headers }); if (!r.ok) return null; return await r.json(); }
+      catch { return null; }
+    };
 
-      if (!ordersRes.ok || !dashboardRes.ok || !pendingRes.ok) throw new Error('Failed to fetch data');
+    const [ordersData, dashboardData, pendingData] = await Promise.all([
+      safeFetch(`${API_URL}/fbm-orders/`),
+      safeFetch(`${API_URL}/fbm-orders/dashboard/metrics`),
+      safeFetch(`${API_URL}/fbm-orders/pending`),
+    ]);
 
-      const ordersData = await ordersRes.json();
-      const dashboardData = await dashboardRes.json();
-      const pendingData = await pendingRes.json();
-
-      setOrders(Array.isArray(ordersData) ? ordersData : ordersData.orders || []);
-      setDashboard(dashboardData);
-      setPendingOrders(Array.isArray(pendingData) ? pendingData : pendingData.orders || []);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setOrders(ordersData && Array.isArray(ordersData.orders) ? ordersData.orders : ordersData && Array.isArray(ordersData) ? ordersData : []);
+    setDashboard(dashboardData || {});
+    setPendingOrders(pendingData && Array.isArray(pendingData.orders) ? pendingData.orders : pendingData && Array.isArray(pendingData) ? pendingData : []);
+    setError(null);
   };
 
   const handleCreateOrder = async (e) => {
