@@ -238,14 +238,14 @@ export default function AccountHealth() {
                   marginBottom: '1rem',
                 }}
               >
-                {overview.riskLevel.toUpperCase()}
+                {(overview.riskLevel || "N/A").toUpperCase()}
               </div>
               <p style={{ color: colors.text, margin: '0.5rem 0', fontWeight: 'bold' }}>
                 Risk Score: {overview.riskScore}%
               </p>
               <div style={{ fontSize: '0.9rem', color: colors.secText }}>
                 {Array.isArray(overview.riskFactors) &&
-                  overview.riskFactors.map((factor, idx) => (
+                  (overview.riskFactors || []).map((factor, idx) => (
                     <div key={idx} style={{ marginBottom: '0.35rem' }}>
                       • {factor}
                     </div>
@@ -494,7 +494,7 @@ export default function AccountHealth() {
                             fontWeight: 'bold',
                           }}
                         >
-                          {v.severity.toUpperCase()}
+                          {(v.severity || "N/A").toUpperCase()}
                         </span>
                       </td>
                       <td style={{ padding: '1rem' }}>
@@ -513,7 +513,7 @@ export default function AccountHealth() {
                             fontWeight: 'bold',
                           }}
                         >
-                          {v.status.toUpperCase()}
+                          {(v.status || "N/A").toUpperCase()}
                         </span>
                       </td>
                       <td style={{ padding: '1rem', color: colors.text, fontSize: '0.9rem' }}>{v.description}</td>
