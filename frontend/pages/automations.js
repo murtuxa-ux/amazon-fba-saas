@@ -6,6 +6,14 @@ export default function AutomationsPage() {
   const router = useRouter();
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://amazon-fba-saas-production.up.railway.app';
 
+function getAuthHeaders() {
+  if (typeof window !== "undefined") {
+    const tk = localStorage.getItem("ecomera_token");
+    if (tk) return { "Authorization": "Bearer " + tk, "Content-Type": "application/json" };
+  }
+  return { "Content-Type": "application/json" };
+}
+
   const [rules, setRules] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -38,7 +46,7 @@ export default function AutomationsPage() {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch(`${apiBase}/automation/rules`);
+      const res = await fetch(`${apiBase}/automation/rules`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to fetch rules');
       const data = await res.json();
       setRules(Array.isArray(data) ? data : data.rules || []);
@@ -51,7 +59,7 @@ export default function AutomationsPage() {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch(`${apiBase}/automation/templates`);
+      const res = await fetch(`${apiBase}/automation/templates`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to fetch templates');
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : data.templates || []);
@@ -62,7 +70,7 @@ export default function AutomationsPage() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch(`${apiBase}/automation/logs`);
+      const res = await fetch(`${apiBase}/automation/logs`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to fetch logs');
       const data = await res.json();
       setLogs(Array.isArray(data) ? data : data.logs || []);
@@ -122,7 +130,7 @@ export default function AutomationsPage() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData),
       });
 
@@ -141,6 +149,7 @@ export default function AutomationsPage() {
     try {
       const res = await fetch(`${apiBase}/automation/rules/${ruleId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!res.ok) throw new Error('Failed to delete rule');
@@ -155,7 +164,7 @@ export default function AutomationsPage() {
     try {
       const res = await fetch(`${apiBase}/automation/rules/${ruleId}/toggle`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ enabled: !currentStatus }),
       });
 
@@ -171,7 +180,7 @@ export default function AutomationsPage() {
     try {
       const res = await fetch(`${apiBase}/automation/rules/${ruleId}/run-now`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!res.ok) throw new Error('Failed to run rule');
