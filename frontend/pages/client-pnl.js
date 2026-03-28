@@ -8,6 +8,7 @@ import {
 
 const ClientPnL = () => {
   const router = useRouter();
+  const token = typeof window !== 'undefined' ? localStorage.getItem('ecomera_token') : null;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://amazon-fba-saas-production.up.railway.app';
 
   // State
@@ -53,11 +54,12 @@ const ClientPnL = () => {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch(`${apiBase}/clients`);
+      const res = await fetch(`${apiBase}/clients`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      setClients(Array.isArray(data) ? data : []);
-      if (data?.length > 0) {
-        setSelectedClient(data[0].id || data[0]._id);
+      const clientList = Array.isArray(data) ? data : data.clients || data.data || [];
+      setClients(clientList);
+      if (clientList.length > 0) {
+        setSelectedClient(clientList[0].id || clientList[0]._id);
       }
     } catch (err) {
       console.error('Failed to fetch clients', err);
@@ -67,7 +69,7 @@ const ClientPnL = () => {
   const fetchMonthlyOverview = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/client-pnl/monthly-overview?month=${selectedMonth}`);
+      const res = await fetch(`${apiBase}/client-pnl/monthly-overview?month=${selectedMonth}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setMonthlyData(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -80,7 +82,7 @@ const ClientPnL = () => {
   const fetchClientDetail = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/client-pnl/client/${selectedClient}/summary`);
+      const res = await fetch(`${apiBase}/client-pnl/client/${selectedClient}/summary`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setClientDetail(data || {});
     } catch (err) {
@@ -93,7 +95,7 @@ const ClientPnL = () => {
   const fetchTrends = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/client-pnl/trends`);
+      const res = await fetch(`${apiBase}/client-pnl/trends`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setTrendsData(data || { revenue: [], byClient: [], margin: [] });
     } catch (err) {
@@ -143,7 +145,7 @@ const ClientPnL = () => {
 
       const res = await fetch(`${apiBase}/client-pnl`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
