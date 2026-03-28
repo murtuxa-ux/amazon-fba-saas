@@ -10,7 +10,7 @@ can import these classes via `from models import PPCCampaign` etc.
 from sqlalchemy import (
     Column, ForeignKey, String, Integer, Boolean, Text, Float, DateTime,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from database import Base
 
@@ -34,7 +34,7 @@ class PPCCampaign(Base):
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    organization = relationship("Organization", back_populates="ppc_campaigns")
+    organization = relationship("Organization", backref=backref("ppc_campaigns", lazy="dynamic"))
     keywords = relationship("PPCKeyword", back_populates="campaign")
     ad_groups = relationship("PPCAdGroup", back_populates="campaign")
 
@@ -83,7 +83,7 @@ class ProfitAnalysis(Base):
     recommended_fulfillment = Column(String(10), default="FBA")
     marketplace = Column(String(10), default="US")
     created_at = Column(DateTime, default=datetime.utcnow)
-    organization = relationship("Organization", back_populates="profit_analyses")
+    organization = relationship("Organization", backref=backref("profit_analyses", lazy="dynamic"))
 
 
 class BuyBoxTracker(Base):
@@ -101,7 +101,7 @@ class BuyBoxTracker(Base):
     last_checked = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    organization = relationship("Organization", back_populates="buybox_trackers")
+    organization = relationship("Organization", backref=backref("buybox_trackers", lazy="dynamic"))
     history = relationship("BuyBoxHistory", back_populates="tracker")
 
 
@@ -134,7 +134,7 @@ class BrandApproval(Base):
     resolved_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    organization = relationship("Organization", back_populates="brand_approvals")
+    organization = relationship("Organization", backref=backref("brand_approvals", lazy="dynamic"))
     documents = relationship("BrandDocument", back_populates="approval")
     timeline = relationship("BrandTimeline", back_populates="approval")
 
@@ -183,7 +183,7 @@ class FBAShipment(Base):
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    organization = relationship("Organization", back_populates="fba_shipments")
+    organization = relationship("Organization", backref=backref("fba_shipments", lazy="dynamic"))
     items = relationship("FBAShipmentItem", back_populates="shipment")
 
 
@@ -227,7 +227,7 @@ class FBMOrder(Base):
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    organization = relationship("Organization", back_populates="fbm_orders")
+    organization = relationship("Organization", backref=backref("fbm_orders", lazy="dynamic"))
     items = relationship("FBMOrderItem", back_populates="order")
 
 
@@ -260,7 +260,7 @@ class AccountHealthSnapshot(Base):
     risk_level = Column(String(20), default="low")
     snapshot_date = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    organization = relationship("Organization", back_populates="account_health_snapshots")
+    organization = relationship("Organization", backref=backref("account_health_snapshots", lazy="dynamic"))
 
 
 class AccountViolation(Base):
@@ -278,7 +278,7 @@ class AccountViolation(Base):
     resolved_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    organization = relationship("Organization", back_populates="account_violations")
+    organization = relationship("Organization", backref=backref("account_violations", lazy="dynamic"))
 
 
 class ClientPortalUser(Base):
@@ -296,7 +296,7 @@ class ClientPortalUser(Base):
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     client = relationship("Client", back_populates="portal_users")
-    organization = relationship("Organization", back_populates="client_portal_users")
+    organization = relationship("Organization", backref=backref("client_portal_users", lazy="dynamic"))
     messages = relationship("ClientMessage", back_populates="portal_user")
 
 
@@ -311,7 +311,7 @@ class ClientMessage(Base):
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     portal_user = relationship("ClientPortalUser", back_populates="messages")
-    organization = relationship("Organization", back_populates="client_messages")
+    organization = relationship("Organization", backref=backref("client_messages", lazy="dynamic"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
