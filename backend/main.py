@@ -30,6 +30,7 @@ from plan_middleware import enforce_client_limit, enforce_scout_limit
 # Phase 3/4 AI module routers
 from ai_recommendations import router as recommendations_router
 from ai_buybox import router as buybox_router
+from ai_product_radar import router as product_radar_router
 from market_analyzer import router as market_router
 from competitor_tracker import router as competitor_router
 from pricing_optimizer import router as pricing_router
@@ -89,6 +90,7 @@ app.add_middleware(
 app.include_router(billing_router)
 app.include_router(recommendations_router)
 app.include_router(buybox_router)
+app.include_router(product_radar_router)
 app.include_router(market_router)
 app.include_router(competitor_router)
 app.include_router(pricing_router)

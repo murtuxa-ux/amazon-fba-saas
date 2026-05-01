@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     # Keepa
     KEEPA_API_KEY: Optional[str] = None
+    # Max Keepa tokens a single Product Radar live-scan may consume.
+    RADAR_LIVE_SCAN_TOKEN_BUDGET: int = 500
 
     # Stripe Billing
     STRIPE_SECRET_KEY: Optional[str] = None

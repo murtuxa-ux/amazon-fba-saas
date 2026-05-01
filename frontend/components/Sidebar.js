@@ -114,6 +114,7 @@ const Sidebar = () => {
     {
       name: 'AI Modules',
       items: [
+        { label: 'Product Radar', href: '/product-radar', icon: '🎯' },
         { label: 'AI Picks', href: '/recommendations', icon: '✨' },
         { label: 'Market Intel', href: '/market', icon: '🌍' },
         { label: 'Competitors', href: '/competitors', icon: '⚔️' },
