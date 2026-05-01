@@ -30,6 +30,8 @@ class Organization(Base):
     suppliers = relationship("Supplier", back_populates="organization")
     scout_results = relationship("ScoutResult", back_populates="organization")
     activity_logs = relationship("ActivityLog", back_populates="organization")
+    buybox_trackers = relationship("BuyBoxTracker", back_populates="organization")
+    buybox_alerts = relationship("BuyBoxAlert", back_populates="organization")
 
 
 # ── User ─────────────────────────────────────────────────────────────────────
@@ -174,3 +176,61 @@ class ActivityLog(Base):
     # Relationships
     organization = relationship("Organization", back_populates="activity_logs")
     user = relationship("User", back_populates="activity_logs")
+
+
+# ── BuyBoxTracker ────────────────────────────────────────────────────────────
+class BuyBoxTracker(Base):
+    __tablename__ = "buybox_trackers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    asin = Column(String(20), nullable=False, index=True)
+    product_title = Column(String(500), default="")
+    our_price = Column(Float, default=0.0)
+    buy_box_price = Column(Float, default=0.0)
+    buy_box_winner = Column(String(255), default="")
+    win_rate_pct = Column(Float, default=0.0)
+    is_suppressed = Column(Boolean, default=False)
+    competitor_count = Column(Integer, default=0)
+    last_checked = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="buybox_trackers")
+    history = relationship("BuyBoxHistory", back_populates="tracker", cascade="all, delete-orphan")
+    alerts = relationship("BuyBoxAlert", back_populates="tracker", cascade="all, delete-orphan")
+
+
+# ── BuyBoxHistory ────────────────────────────────────────────────────────────
+class BuyBoxHistory(Base):
+    __tablename__ = "buybox_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tracker_id = Column(Integer, ForeignKey("buybox_trackers.id"), nullable=False, index=True)
+    buy_box_price = Column(Float, nullable=False)
+    buy_box_winner = Column(String(255), nullable=False)
+    our_price = Column(Float, nullable=False)
+    competitor_count = Column(Integer, default=0)
+    is_winning = Column(Boolean, default=False)
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+    tracker = relationship("BuyBoxTracker", back_populates="history")
+
+
+# ── BuyBoxAlert ──────────────────────────────────────────────────────────────
+class BuyBoxAlert(Base):
+    __tablename__ = "buybox_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    tracker_id = Column(Integer, ForeignKey("buybox_trackers.id"), nullable=True, index=True)
+    asin = Column(String(20), nullable=False, index=True)
+    product_title = Column(String(500), default="")
+    alert_type = Column(String(50), nullable=False)        # lost_buybox / price_drop / new_competitor / suppressed
+    severity = Column(String(20), default="info")          # critical / warning / info
+    message = Column(Text, default="")
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="buybox_alerts")
+    tracker = relationship("BuyBoxTracker", back_populates="alerts")

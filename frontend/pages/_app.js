@@ -5,6 +5,13 @@
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import { installCamelCaseFetch } from "../lib/api";
+
+// Install the snake_case -> camelCase response transformer once at app boot.
+// Module-level (rather than useEffect) so it lands before any page's own fetch.
+if (typeof window !== "undefined") {
+  installCamelCaseFetch();
+}
 
 const PUBLIC_ROUTES = ["/login", "/signup", "/landing", "/pricing", "/onboarding", "/portal"];
 
