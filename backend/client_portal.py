@@ -598,7 +598,8 @@ async def get_client_notes(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client profile not found")
 
     notes = db.query(ClientNote).filter(
-        ClientNote.client_id == profile_id
+        ClientNote.org_id == current_user.org_id,
+        ClientNote.client_id == profile_id,
     ).order_by(
         ClientNote.is_pinned.desc(),
         ClientNote.created_at.desc()
