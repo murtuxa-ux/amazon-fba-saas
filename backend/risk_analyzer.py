@@ -140,8 +140,11 @@ async def get_portfolio_risk(
     total_scores = []
 
     for product in products:
+        # Phantom-schema reference (ScoutResult.product_id doesn't exist) left
+        # untouched — leak fix only; full repair tracked as PR A follow-up.
         scout_results = db.query(ScoutResult).filter(
-            ScoutResult.product_id == product.id
+            ScoutResult.org_id == user.org_id,
+            ScoutResult.product_id == product.id,
         ).order_by(ScoutResult.created_at.desc()).all()
 
         risk_data = compute_risk_score(product, scout_results)
@@ -182,8 +185,11 @@ async def get_asin_risk(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Phantom-schema reference (ScoutResult.product_id doesn't exist) left
+    # untouched — leak fix only; full repair tracked as PR A follow-up.
     scout_results = db.query(ScoutResult).filter(
-        ScoutResult.product_id == product.id
+        ScoutResult.org_id == user.org_id,
+        ScoutResult.product_id == product.id,
     ).order_by(ScoutResult.created_at.desc()).all()
 
     risk_data = compute_risk_score(product, scout_results)
@@ -211,8 +217,11 @@ async def get_risk_alerts(
     alerts = []
 
     for product in products:
+        # Phantom-schema reference (ScoutResult.product_id doesn't exist) left
+        # untouched — leak fix only; full repair tracked as PR A follow-up.
         scout_results = db.query(ScoutResult).filter(
-            ScoutResult.product_id == product.id
+            ScoutResult.org_id == user.org_id,
+            ScoutResult.product_id == product.id,
         ).order_by(ScoutResult.created_at.desc()).limit(2).all()
 
         if len(scout_results) >= 2:

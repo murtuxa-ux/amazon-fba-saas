@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+
+# Next.js
+.next/
+node_modules/
+
+# Claude Code
+.claude/
+
+# Engineering audit (private; move to gist later)
+Engineering_Audit_Brief.md

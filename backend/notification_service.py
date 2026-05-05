@@ -129,9 +129,13 @@ async def check_for_alerts(
     products = get_org_scoped_query(db, user, Product).all()
 
     for product in products:
-        # Get latest two scout results to compare
+        # Get latest two scout results to compare.
+        # Note: ScoutResult.product_id reference here is a phantom-schema bug
+        # (no such column on ScoutResult); fixing the leak only — full repair
+        # of this function tracked as PR A follow-up.
         scout_results = db.query(ScoutResult).filter(
-            ScoutResult.product_id == product.id
+            ScoutResult.org_id == user.org_id,
+            ScoutResult.product_id == product.id,
         ).order_by(ScoutResult.created_at.desc()).limit(2).all()
 
         if len(scout_results) < 1:
