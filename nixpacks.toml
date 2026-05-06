@@ -1,0 +1,21 @@
+# /nixpacks.toml — explicit Python build config for Railway.
+#
+# This file lives at repo root because /railway.json (added in PR #9)
+# forces Railway to build from repo root. Without an explicit provider
+# hint at this level, Nixpacks auto-detects from frontend/package.json
+# (Node.js) and never installs Python — so `pip install` from the
+# install phase fails with "pip: command not found" and the deploy
+# breaks at the build stage.
+#
+# `providers = ["python"]` forces the Python provider, matching what
+# backend/nixpacks.toml has done since the project's first commit.
+# backend/nixpacks.toml is kept in place as a defense-in-depth
+# fallback (used by any future build path that runs from backend/).
+
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["cd backend && pip install -r requirements.txt"]
