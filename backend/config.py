@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,https://amazon-fba-saas.vercel.app"
 
+    # Multi-tenancy — master kill-switch for tenant_session enforcement.
+    # Defined in PR C-1, defaulting False so the new tenant_session
+    # dependency is a no-op (current behavior preserved). PR C-2 ships
+    # the route sweep + RLS migration with this still False, soaks for
+    # 24-48h, then we flip RLS_ENFORCED=true via Railway env var to
+    # engage SET LOCAL ROLE app_role + SET LOCAL app.current_org_id per
+    # request. Flip back to false to roll back without redeploying.
+    RLS_ENFORCED: bool = False
+
     class Config:
         env_file = ".env"
         extra = "ignore"
