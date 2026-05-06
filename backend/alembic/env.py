@@ -31,6 +31,32 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Tables created by orphan modules (ai_automation.py, reporting_engine.py,
+# team_workflow.py and others) call `Base.metadata.create_all()` at import
+# time. Those tables exist in production and are captured in the baseline
+# migration, but their model classes are not yet hoisted into models.py
+# and therefore are not on `Base.metadata` when env.py runs.
+#
+# Without this filter `alembic revision --autogenerate` would propose
+# dropping every orphan table on every run. The allowlist restricts diff
+# to canonical tables managed by models.py.
+#
+# This filter is removed once issue #6 lands (orphan models migrated into
+# models.py and brought under alembic). Until then, schema changes to the
+# orphan tables go unmanaged — that's the technical debt issue #6 tracks.
+_CANONICAL_TABLES = frozenset(target_metadata.tables.keys())
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    if type_ == "table":
+        return name in _CANONICAL_TABLES
+    if type_ in {"index", "unique_constraint", "foreign_key_constraint"}:
+        # Constraints/indexes inherit their parent table's decision.
+        parent_table = getattr(obj, "table", None)
+        if parent_table is not None:
+            return parent_table.name in _CANONICAL_TABLES
+    return True
+
 
 def _get_database_url() -> str:
     url = os.getenv("DATABASE_URL")
@@ -55,6 +81,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -78,6 +105,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
