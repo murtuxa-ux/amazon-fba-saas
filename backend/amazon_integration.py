@@ -223,7 +223,7 @@ async def ads_api_request(cred: AmazonCredential, db: Session, method: str, path
 
 async def sync_orders(cred: AmazonCredential, db: Session, org_id: int, days_back: int = 30) -> int:
     """Pull recent orders from SP-API Orders endpoint."""
-    from models_phase12 import FBMOrder, FBMOrderItem
+    from models import FBMOrder, FBMOrderItem
 
     created_after = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%dT%H:%M:%SZ")
     params = {
@@ -268,7 +268,7 @@ async def sync_orders(cred: AmazonCredential, db: Session, org_id: int, days_bac
 
 async def sync_fba_shipments(cred: AmazonCredential, db: Session, org_id: int) -> int:
     """Pull inbound FBA shipments from SP-API."""
-    from models_phase12 import FBAShipment, FBAShipmentItem
+    from models import FBAShipment, FBAShipmentItem
 
     params = {
         "MarketplaceId": cred.marketplace_id or "ATVPDKIKX0DER",
@@ -347,7 +347,7 @@ async def sync_inventory(cred: AmazonCredential, db: Session, org_id: int) -> in
 
 async def sync_account_health(cred: AmazonCredential, db: Session, org_id: int) -> int:
     """Pull account health metrics."""
-    from models_phase12 import AccountHealthSnapshot
+    from models import AccountHealthSnapshot
 
     # Account health uses the Notifications/Account Health endpoint
     # This is simplified — real implementation would parse performance metrics
@@ -370,7 +370,7 @@ async def sync_account_health(cred: AmazonCredential, db: Session, org_id: int) 
 
 async def sync_buybox(cred: AmazonCredential, db: Session, org_id: int) -> int:
     """Pull buy box data for tracked ASINs using Catalog Items & Pricing APIs."""
-    from models_phase12 import BuyBoxTracker
+    from models import BuyBoxTracker
     from models import Product
 
     products = db.query(Product).filter(Product.org_id == org_id).all()
@@ -432,7 +432,7 @@ async def sync_buybox(cred: AmazonCredential, db: Session, org_id: int) -> int:
 
 async def sync_ppc_campaigns(cred: AmazonCredential, db: Session, org_id: int) -> int:
     """Pull Sponsored Products campaigns from Amazon Advertising API."""
-    from models_phase12 import PPCCampaign
+    from models import PPCCampaign
 
     data = await ads_api_request(cred, db, "GET", "/v2/sp/campaigns")
     campaigns = data if isinstance(data, list) else data.get("campaigns", [])
@@ -481,7 +481,7 @@ async def sync_ppc_campaigns(cred: AmazonCredential, db: Session, org_id: int) -
 
 async def sync_ppc_performance(cred: AmazonCredential, db: Session, org_id: int):
     """Request and process a Sponsored Products performance report."""
-    from models_phase12 import PPCCampaign
+    from models import PPCCampaign
 
     # Request report
     report_body = {
@@ -531,7 +531,7 @@ async def sync_ppc_performance(cred: AmazonCredential, db: Session, org_id: int)
 
 async def sync_ppc_keywords(cred: AmazonCredential, db: Session, org_id: int) -> int:
     """Pull keywords for all campaigns."""
-    from models_phase12 import PPCKeyword, PPCCampaign
+    from models import PPCKeyword, PPCCampaign
 
     campaigns = db.query(PPCCampaign).filter(PPCCampaign.org_id == org_id).all()
     count = 0

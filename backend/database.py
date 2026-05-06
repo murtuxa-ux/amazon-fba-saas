@@ -44,6 +44,8 @@ def get_db():
         db.close()
 
 
-def init_db():
-    """Create all tables"""
-    Base.metadata.create_all(bind=engine)
+# Schema bring-up moved to Alembic — `alembic upgrade head` runs as the
+# Procfile release command and is the single source of truth for table
+# creation. The legacy `init_db()` helper that called
+# Base.metadata.create_all() was removed in PR B (chore/alembic-baseline)
+# alongside main_wrapper.py / main_patch_phase12.py.
