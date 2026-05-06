@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from config import settings
-from database import get_db, init_db, Base, engine
+from database import get_db
 from models import (
     Organization, User, Client, Product, WeeklyReport,
     Supplier, ScoutResult, ActivityLog,
@@ -52,24 +52,37 @@ from kpi_targets import router as kpi_router
 # Stage 7: DWM Reporting System
 from dwm_reporting import router as dwm_router
 
-# Phase 7-11: New modules (safe imports — backend starts even if a module has issues)
+# Phase 7-11 + Phase 12-15: safe imports — backend starts even if a single module
+# fails. Phase 12-15 routers were previously loaded by the now-removed
+# main_wrapper.py / main_patch_phase12.py shim; they live here directly so the
+# Procfile can point at `main:app` and Alembic owns schema bring-up.
 import logging as _log
 
-_phase7_routers = {}
+_dynamic_routers = {}
 for _mod_name, _router_name, _key in [
+    # Phase 7-11
     ("products_manager", "router", "products_pipeline"),
     ("purchase_orders", "router", "purchase_orders"),
     ("client_pnl", "router", "client_pnl"),
     ("automation_service", "router", "automation"),
     ("client_portal", "router", "client_portal"),
     ("intelligence_hub", "router", "intelligence"),
+    # Phase 12-15 (formerly registered via main_patch_phase12.py)
+    ("ppc_manager", "router", "ppc"),
+    ("wholesale_profit_calculator", "router", "profit_calc"),
+    ("brand_approval_tracker", "router", "brand_approvals"),
+    ("fba_shipment_planner", "router", "fba_shipments"),
+    ("fbm_order_manager", "router", "fbm_orders"),
+    ("account_health_monitor", "router", "account_health"),
+    ("multi_user_access", "router", "user_management"),
+    ("client_portal_external", "router", "client_portal_ext"),
 ]:
     try:
         _mod = __import__(_mod_name)
-        _phase7_routers[_key] = getattr(_mod, _router_name)
+        _dynamic_routers[_key] = getattr(_mod, _router_name)
     except Exception as _e:
         _log.error(f"Failed to import {_mod_name}: {_e}")
-        _phase7_routers[_key] = None
+        _dynamic_routers[_key] = None
 
 # ── App Setup ───────────────────────────────────────────────────────────────────
 app = FastAPI(title="Ecom Era FBA Wholesale SaaS", version="7.0")
@@ -108,17 +121,18 @@ app.include_router(system_router)
 app.include_router(kpi_router)
 app.include_router(dwm_router)
 
-# Phase 7-11 routers (only include if successfully imported)
-for _key, _router in _phase7_routers.items():
+# Phase 7-11 + Phase 12-15 routers (only include if successfully imported)
+for _key, _router in _dynamic_routers.items():
     if _router is not None:
         app.include_router(_router)
     else:
         _log.warning(f"Skipping router: {_key} (import failed)")
 
 
-@app.on_event("startup")
-def on_startup():
-    Base.metadata.create_all(bind=engine)
+# Schema bring-up moved to Alembic. The release command in Procfile
+# (`alembic upgrade head`) is the single source of truth for table
+# creation. The startup-time Base.metadata.create_all() that lived here
+# was removed when main_wrapper.py / main_patch_phase12.py were deleted.
 
 
 # ── Health Check ────────────────────────────────────────────────────────────────
