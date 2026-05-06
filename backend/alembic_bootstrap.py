@@ -8,7 +8,7 @@ three database states correctly:
      schema from the 0001_baseline migration (and any later migrations
      in order).
 
-  2. Legacy production DB (canonical tables exist, no alembic_version
+  2. Legacy production DB (`users` table exists, no alembic_version
      table) — the DB was created by the old
      `Base.metadata.create_all()` startup hook, not by Alembic. We
      `stamp head` first to mark the existing schema as already at the
@@ -39,10 +39,15 @@ from sqlalchemy import create_engine, inspect
 from alembic import command
 from alembic.config import Config
 
-# A canonical table from models.py. Its presence (without
-# alembic_version) is the signal that the DB existed before alembic
-# was introduced and needs a one-time stamp.
-_LEGACY_PROBE_TABLE = "organizations"
+# A canonical table from models.py used as a defensive guard against
+# stamping a truly-empty DB. The legacy SIGNAL is `alembic_version`
+# missing; this table's presence just confirms the DB has real schema
+# and isn't a fresh empty database that needs upgrade-from-scratch.
+#
+# Why `users` specifically: it's foundational to auth and has existed
+# in every deployed version since seed.py was first run. It will not
+# be renamed or removed in any forseeable refactor (PR C, RLS, etc.).
+_LEGACY_PROBE_TABLE = "users"
 
 
 def main() -> None:
@@ -66,23 +71,24 @@ def main() -> None:
 
     if has_canonical_data and not has_alembic_version:
         print(
-            "release-bootstrap: legacy DB detected "
-            f"({_LEGACY_PROBE_TABLE!r} present, alembic_version missing). "
-            "Stamping head before upgrade so the existing schema is "
-            "treated as baseline.",
+            "release-bootstrap: branch=LEGACY — "
+            f"{_LEGACY_PROBE_TABLE!r} table present but alembic_version "
+            "missing. Stamping head, then upgrade head (no-op).",
             flush=True,
         )
         command.stamp(cfg, "head")
     elif not has_canonical_data and not has_alembic_version:
         print(
-            "release-bootstrap: fresh DB detected (no canonical tables, "
-            "no alembic_version). Running upgrade head from scratch.",
+            "release-bootstrap: branch=FRESH — neither "
+            f"{_LEGACY_PROBE_TABLE!r} nor alembic_version present. "
+            "Running upgrade head to create schema from scratch.",
             flush=True,
         )
     else:
         print(
-            "release-bootstrap: DB already under alembic management. "
-            "Running upgrade head (no-op if no pending migrations).",
+            "release-bootstrap: branch=MANAGED — alembic_version present. "
+            "Running upgrade head (applies any new migrations; no-op if "
+            "none).",
             flush=True,
         )
 
