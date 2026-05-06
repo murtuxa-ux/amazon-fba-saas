@@ -1,0 +1,5 @@
+# Force LF endings for files that run inside the Linux container.
+# Without this, Windows checkouts commit CRLF and Linux /bin/sh chokes
+# on the trailing \r in shebang and command lines.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
