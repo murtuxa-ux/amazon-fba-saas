@@ -1,0 +1,17 @@
+# Allowlist for backend/tests/test_query_lint.py.
+#
+# Format: one entry per line, "<repo-relative-path>:<lineno>" followed by
+# a "# reason: <justification>" comment ON THE SAME LINE.
+#
+# Entries without a `# reason:` comment fail the lint test outright,
+# forcing every exception to be documented at the point it's allowed.
+#
+# This file is intentionally empty in PR C-1 — no allowlisted bypasses
+# yet. Real entries land alongside PR C-2's route sweep, when the lint
+# is enabled in CI and any pre-existing unscoped queries surface.
+#
+# Examples (placeholder; remove when adding real entries):
+#
+#   backend/auth.py:102                    # reason: get_current_user — query is by users.id, not org-scoped, called pre-auth-context
+#   backend/stripe_billing.py:158          # reason: webhook lookup by stripe_customer_id — org_id derived afterward
+#   backend/some_admin_route.py:42         # reason: support-mode escalation, gated to owner role only

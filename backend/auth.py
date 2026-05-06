@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, Header
 from jose import jwt, JWTError
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 import logging
 
@@ -124,3 +125,55 @@ def require_role(minimum_role: str):
 def get_org_scoped_query(db: Session, user: User, model_class):
     """Returns a query scoped to the user's organization"""
     return db.query(model_class).filter(model_class.org_id == user.org_id)
+
+
+# ── Tenancy session — defined in PR C-1, plumbed in PR C-2 ──────────────────
+#
+# When `settings.RLS_ENFORCED` is False (the default in PR C-1 and on the
+# first PR C-2 deploy), this dependency is a passthrough — it resolves
+# `get_current_user` and returns the User. Behavior identical to
+# `Depends(get_current_user)`. No `SET LOCAL`, no role switch, no DB-level
+# tenancy enforcement.
+#
+# When `settings.RLS_ENFORCED` is True (flipped at runtime AFTER PR C-2 has
+# soaked safely in prod), this dependency additionally runs:
+#     SET LOCAL ROLE app_role
+#     SET LOCAL app.current_org_id = <user.org_id>
+# inside the request transaction. Combined with the RLS policies installed
+# in PR C-2's migration, every customer-data query is then filtered at the
+# Postgres level. A missed application-level `org_id` filter cannot leak
+# data across tenants; raw `db.query(Foo).all()` returns only the caller's
+# org's rows.
+#
+# This function is dead code on PR C-1 — no route uses it yet. The
+# mechanical sweep (`Depends(get_current_user)` -> `Depends(tenant_session)`)
+# happens in PR C-2. Shipped here so it can be reviewed in isolation, and so
+# the PR C-2 diff is just route-decoration changes plus the migration.
+#
+# Why a separate dependency rather than modifying `get_current_user`:
+# the public routes (signup, password reset, Stripe webhook) call
+# `get_current_user` at most indirectly and never want a tenancy session
+# var set. Keeping `tenant_session` separate means those routes are
+# untouched by the C-2 sweep.
+
+def tenant_session(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Authenticated dependency that also primes the request transaction
+    with tenancy session state when RLS is enforced.
+
+    Returns the same `User` as `get_current_user` so this is a drop-in
+    replacement at every route that needs auth + tenancy.
+    """
+    if settings.RLS_ENFORCED:
+        # SET LOCAL is transaction-scoped — clears at COMMIT/ROLLBACK,
+        # so concurrent requests on different connections never bleed
+        # session var into each other.
+        db.execute(text("SET LOCAL ROLE app_role"))
+        db.execute(
+            text("SET LOCAL app.current_org_id = :oid"),
+            {"oid": user.org_id},
+        )
+    return user
