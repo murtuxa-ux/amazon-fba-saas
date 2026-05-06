@@ -107,6 +107,20 @@ baseline (e.g., the Railway prod DB itself), run `alembic stamp head`
 once to mark it as already-migrated — do **not** run `alembic upgrade
 head`, it would fail trying to recreate existing tables.
 
+### Production deploys: `alembic_bootstrap.py`
+
+The Procfile `release` command runs `python alembic_bootstrap.py`, not
+`alembic upgrade head` directly. The bootstrap script:
+
+- Detects three DB states (fresh / legacy-pre-alembic / already-managed).
+- Issues a one-time `stamp head` on the legacy state only.
+- Always runs `alembic upgrade head` afterward.
+
+Why the indirection: a blind unconditional `stamp head` before every
+upgrade would silently skip every future migration (stamp sets the
+version row to head without running DDL). The script gates the stamp
+on a probe of the `organizations` table, so it fires once at most.
+
 ---
 
 ## Don't
