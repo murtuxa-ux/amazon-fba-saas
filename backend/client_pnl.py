@@ -368,6 +368,91 @@ def list_pnls(
     return pnls
 
 
+@router.get("/monthly-overview", response_model=MonthlyOverview)
+def get_monthly_overview(
+    month: str = Query(..., description="Month in format 2026-03"),
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_current_org)
+):
+    """
+    Get all clients' P&L for a given month with totals row.
+    """
+    pnls = db.query(ClientPnL).filter(
+        ClientPnL.org_id == org_id,
+        ClientPnL.month == month
+    ).order_by(ClientPnL.client_id).all()
+
+    rows = [
+        MonthlyOverviewRow(
+            client_id=pnl.client_id,
+            client_name=None,  # Set to client name if relationship available
+            revenue=pnl.revenue,
+            net_profit=pnl.net_profit,
+            profit_margin_pct=pnl.profit_margin_pct,
+            units_sold=pnl.units_sold
+        )
+        for pnl in pnls
+    ]
+
+    total_revenue = sum(pnl.revenue for pnl in pnls)
+    total_net_profit = sum(pnl.net_profit for pnl in pnls)
+    avg_profit_margin = (
+        (total_net_profit / total_revenue * 100) if total_revenue > 0 else 0.0
+    )
+
+    return MonthlyOverview(
+        month=month,
+        rows=rows,
+        total_revenue=total_revenue,
+        total_net_profit=total_net_profit,
+        avg_profit_margin_pct=round(avg_profit_margin, 2)
+    )
+
+
+@router.get("/trends", response_model=TrendResponse)
+def get_pnl_trends(
+    client_id: Optional[int] = Query(None),
+    start_month: Optional[str] = Query(None),
+    end_month: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_current_org)
+):
+    """
+    Get revenue/profit trends across all clients (or filtered) by month for charting.
+    Aggregates all clients' P&L for each month.
+    """
+    query = db.query(
+        ClientPnL.month,
+        func.sum(ClientPnL.revenue).label('total_revenue'),
+        func.sum(ClientPnL.net_profit).label('total_net_profit')
+    ).filter(ClientPnL.org_id == org_id)
+
+    if client_id:
+        query = query.filter(ClientPnL.client_id == client_id)
+
+    if start_month:
+        query = query.filter(ClientPnL.month >= start_month)
+
+    if end_month:
+        query = query.filter(ClientPnL.month <= end_month)
+
+    results = query.group_by(ClientPnL.month).order_by(ClientPnL.month.asc()).all()
+
+    trends = [
+        TrendDataPoint(
+            month=result[0],
+            revenue=result[1] or 0.0,
+            net_profit=result[2] or 0.0,
+            avg_profit_margin_pct=round(
+                ((result[2] or 0) / (result[1] or 1) * 100), 2
+            ) if result[1] else 0.0
+        )
+        for result in results
+    ]
+
+    return TrendResponse(trends=trends)
+
+
 @router.get("/{id}", response_model=ClientPnLResponse)
 def get_pnl(
     id: int,
@@ -482,91 +567,6 @@ def get_client_pnl_summary(
         total_net_profit=total_net_profit,
         avg_profit_margin_pct=round(avg_profit_margin, 2)
     )
-
-
-@router.get("/monthly-overview", response_model=MonthlyOverview)
-def get_monthly_overview(
-    month: str = Query(..., description="Month in format 2026-03"),
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_current_org)
-):
-    """
-    Get all clients' P&L for a given month with totals row.
-    """
-    pnls = db.query(ClientPnL).filter(
-        ClientPnL.org_id == org_id,
-        ClientPnL.month == month
-    ).order_by(ClientPnL.client_id).all()
-
-    rows = [
-        MonthlyOverviewRow(
-            client_id=pnl.client_id,
-            client_name=None,  # Set to client name if relationship available
-            revenue=pnl.revenue,
-            net_profit=pnl.net_profit,
-            profit_margin_pct=pnl.profit_margin_pct,
-            units_sold=pnl.units_sold
-        )
-        for pnl in pnls
-    ]
-
-    total_revenue = sum(pnl.revenue for pnl in pnls)
-    total_net_profit = sum(pnl.net_profit for pnl in pnls)
-    avg_profit_margin = (
-        (total_net_profit / total_revenue * 100) if total_revenue > 0 else 0.0
-    )
-
-    return MonthlyOverview(
-        month=month,
-        rows=rows,
-        total_revenue=total_revenue,
-        total_net_profit=total_net_profit,
-        avg_profit_margin_pct=round(avg_profit_margin, 2)
-    )
-
-
-@router.get("/trends", response_model=TrendResponse)
-def get_pnl_trends(
-    client_id: Optional[int] = Query(None),
-    start_month: Optional[str] = Query(None),
-    end_month: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_current_org)
-):
-    """
-    Get revenue/profit trends across all clients (or filtered) by month for charting.
-    Aggregates all clients' P&L for each month.
-    """
-    query = db.query(
-        ClientPnL.month,
-        func.sum(ClientPnL.revenue).label('total_revenue'),
-        func.sum(ClientPnL.net_profit).label('total_net_profit')
-    ).filter(ClientPnL.org_id == org_id)
-
-    if client_id:
-        query = query.filter(ClientPnL.client_id == client_id)
-
-    if start_month:
-        query = query.filter(ClientPnL.month >= start_month)
-
-    if end_month:
-        query = query.filter(ClientPnL.month <= end_month)
-
-    results = query.group_by(ClientPnL.month).order_by(ClientPnL.month.asc()).all()
-
-    trends = [
-        TrendDataPoint(
-            month=result[0],
-            revenue=result[1] or 0.0,
-            net_profit=result[2] or 0.0,
-            avg_profit_margin_pct=round(
-                ((result[2] or 0) / (result[1] or 1) * 100), 2
-            ) if result[1] else 0.0
-        )
-        for result in results
-    ]
-
-    return TrendResponse(trends=trends)
 
 
 @router.post("/{id}/line-items", response_model=PnLLineItemResponse)

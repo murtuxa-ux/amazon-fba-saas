@@ -500,6 +500,96 @@ async def create_fbm_order(
 # ENDPOINT: Get Order Details
 # ============================================================================
 
+@router.get("/pending", response_model=List[PendingOrderResponse])
+async def get_pending_orders(
+    current_user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+    include_overdue: bool = Query(True),
+):
+    """
+    Get all orders needing action (ship_by date approaching).
+
+    Sorted by urgency (ship_by_date closest first).
+    Flagged if overdue.
+    """
+    try:
+        now = datetime.utcnow()
+
+        query = db.query(FBMOrder).filter(
+            FBMOrder.org_id == current_user.org_id,
+            FBMOrder.status.in_([OrderStatus.PENDING.value, OrderStatus.PROCESSING.value])
+        )
+
+        orders = query.order_by(FBMOrder.ship_by_date.asc()).all()
+
+        # Enrich with computed fields
+        for order in orders:
+            order.is_overdue = _is_overdue(order.ship_by_date)
+            order.days_until_deadline = _calculate_days_until_deadline(order.ship_by_date)
+            order.item_count = len(order.items) if order.items else 0
+
+        # Filter out non-overdue if not requested
+        if not include_overdue:
+            orders = [o for o in orders if not o.is_overdue]
+
+        logger.info(
+            f"Retrieved {len(orders)} pending FBM orders for org {current_user.org_id}",
+            extra={"org_id": current_user.org_id}
+        )
+
+        return orders
+
+    except Exception as e:
+        logger.error(f"Error retrieving pending orders: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve pending orders"
+        )
+
+
+# ============================================================================
+# ENDPOINT: Bulk Ship Orders
+# ============================================================================
+
+@router.get("/returns", response_model=List[ReturnRecord])
+async def list_returns(
+    current_user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """List all returns with status and refund information."""
+    try:
+        returns = db.query(FBMOrder).filter(
+            FBMOrder.org_id == current_user.org_id,
+            FBMOrder.status == OrderStatus.RETURNED.value
+        ).order_by(
+            FBMOrder.updated_at.desc()
+        ).offset(skip).limit(limit).all()
+
+        # Enrich with return date
+        for r in returns:
+            r.return_date = r.updated_at
+
+        logger.info(
+            f"Retrieved {len(returns)} return records for org {current_user.org_id}",
+            extra={"org_id": current_user.org_id}
+        )
+
+        return returns
+
+    except Exception as e:
+        logger.error(f"Error retrieving returns: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve returns"
+        )
+
+
+# ============================================================================
+# ENDPOINT: Shipping Labels (Mock)
+# ============================================================================
+
 @router.get("/{order_id}", response_model=FBMOrderResponse)
 async def get_fbm_order(
     order_id: int,
@@ -1037,57 +1127,6 @@ async def get_performance_metrics(
 # ENDPOINT: Pending Orders
 # ============================================================================
 
-@router.get("/pending", response_model=List[PendingOrderResponse])
-async def get_pending_orders(
-    current_user: User = Depends(tenant_session),
-    db: Session = Depends(get_db),
-    include_overdue: bool = Query(True),
-):
-    """
-    Get all orders needing action (ship_by date approaching).
-
-    Sorted by urgency (ship_by_date closest first).
-    Flagged if overdue.
-    """
-    try:
-        now = datetime.utcnow()
-
-        query = db.query(FBMOrder).filter(
-            FBMOrder.org_id == current_user.org_id,
-            FBMOrder.status.in_([OrderStatus.PENDING.value, OrderStatus.PROCESSING.value])
-        )
-
-        orders = query.order_by(FBMOrder.ship_by_date.asc()).all()
-
-        # Enrich with computed fields
-        for order in orders:
-            order.is_overdue = _is_overdue(order.ship_by_date)
-            order.days_until_deadline = _calculate_days_until_deadline(order.ship_by_date)
-            order.item_count = len(order.items) if order.items else 0
-
-        # Filter out non-overdue if not requested
-        if not include_overdue:
-            orders = [o for o in orders if not o.is_overdue]
-
-        logger.info(
-            f"Retrieved {len(orders)} pending FBM orders for org {current_user.org_id}",
-            extra={"org_id": current_user.org_id}
-        )
-
-        return orders
-
-    except Exception as e:
-        logger.error(f"Error retrieving pending orders: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve pending orders"
-        )
-
-
-# ============================================================================
-# ENDPOINT: Bulk Ship Orders
-# ============================================================================
-
 @router.post("/bulk-ship", status_code=status.HTTP_200_OK)
 async def bulk_ship_orders(
     request: BulkShippingRequest,
@@ -1169,45 +1208,6 @@ async def bulk_ship_orders(
 
 # ============================================================================
 # ENDPOINT: Returns List
-# ============================================================================
-
-@router.get("/returns", response_model=List[ReturnRecord])
-async def list_returns(
-    current_user: User = Depends(tenant_session),
-    db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-):
-    """List all returns with status and refund information."""
-    try:
-        returns = db.query(FBMOrder).filter(
-            FBMOrder.org_id == current_user.org_id,
-            FBMOrder.status == OrderStatus.RETURNED.value
-        ).order_by(
-            FBMOrder.updated_at.desc()
-        ).offset(skip).limit(limit).all()
-
-        # Enrich with return date
-        for r in returns:
-            r.return_date = r.updated_at
-
-        logger.info(
-            f"Retrieved {len(returns)} return records for org {current_user.org_id}",
-            extra={"org_id": current_user.org_id}
-        )
-
-        return returns
-
-    except Exception as e:
-        logger.error(f"Error retrieving returns: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve returns"
-        )
-
-
-# ============================================================================
-# ENDPOINT: Shipping Labels (Mock)
 # ============================================================================
 
 @router.get("/shipping-labels/{order_id}", response_model=ShippingLabel)
