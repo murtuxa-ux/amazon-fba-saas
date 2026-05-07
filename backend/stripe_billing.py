@@ -6,6 +6,7 @@ Handles subscriptions, checkout with 14-day free trial, portal, webhooks, and pl
 import stripe
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -13,7 +14,7 @@ from typing import Optional
 from config import settings
 from database import get_db
 from models import Organization, User, ActivityLog
-from auth import get_current_user, require_role
+from auth import get_current_user, tenant_session, require_role
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -164,7 +165,7 @@ def list_plans():
 
 @router.get("/status")
 def billing_status(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Return current billing status for the organization."""
@@ -205,7 +206,7 @@ def billing_status(
 @router.post("/checkout")
 def create_checkout(
     data: CheckoutInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Create a Stripe Checkout session for subscription with 14-day free trial."""
@@ -309,6 +310,19 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid signature.")
 
+    # The webhook has no JWT'd user, so it can't go through tenant_session
+    # at the dependency layer. Instead: derive org_id from the Stripe event
+    # (either via metadata or by looking up Organization.stripe_customer_id),
+    # then explicitly prime the tenancy session inside this handler before
+    # touching tenant data. The initial Organization lookup runs as
+    # migration_role (BYPASSRLS, our DATABASE_URL role) — that's intentional
+    # and bounded: a single keyed query on stripe_customer_id, not a tenant
+    # data read.
+    def _prime_tenant_session(oid: int) -> None:
+        if settings.RLS_ENFORCED:
+            db.execute(text("SET LOCAL ROLE app_role"))
+            db.execute(text("SET LOCAL app.current_org_id = :oid"), {"oid": int(oid)})
+
     # Handle subscription events
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
@@ -323,6 +337,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 .first()
             )
             if org:
+                _prime_tenant_session(org.id)
                 org.plan = plan
                 org.stripe_subscription_id = subscription_id
                 if not org.stripe_customer_id:
@@ -338,6 +353,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             .first()
         )
         if org:
+            _prime_tenant_session(org.id)
             org.stripe_subscription_id = sub.get("id")
             # Update plan if price changed
             items = sub.get("items", {}).get("data", [])
@@ -361,6 +377,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             .first()
         )
         if org:
+            _prime_tenant_session(org.id)
             org.plan = "scout"
             org.stripe_subscription_id = ""
             db.commit()
