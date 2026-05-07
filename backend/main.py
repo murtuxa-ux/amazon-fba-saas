@@ -18,7 +18,7 @@ from models import (
     Supplier, ScoutResult, ActivityLog,
 )
 from auth import (
-    get_current_user, require_role, hash_password, verify_password,
+    tenant_session, require_role, hash_password, verify_password,
     create_access_token, get_org_scoped_query,
 )
 from ai_engine import calculate_score, get_decision, get_risk_level
@@ -145,7 +145,7 @@ def health_check():
 @app.post("/seed")
 def seed_demo_data(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Create demo org + users if they don't exist. Requires admin/owner auth."""
     if user.role not in ("owner", "admin"):
@@ -500,7 +500,7 @@ def reset_password(data: ResetPasswordInput, db: Session = Depends(get_db)):
 
 
 @app.get("/auth/me")
-def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def me(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     return {
         "id": user.id,
@@ -516,7 +516,7 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
 
 # ── Users (Team Management) ────────────────────────────────────────────────────
 @app.get("/users")
-def list_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_users(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     members = db.query(User).filter(User.org_id == user.org_id).all()
     return [
         {
@@ -556,7 +556,7 @@ def add_user(
 
 
 @app.get("/users/me")
-def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_me(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     return {
         "id": user.id, "username": user.username, "name": user.name,
@@ -621,7 +621,7 @@ def delete_user(
 @app.post("/auth/change-password")
 def change_password(
     data: ChangePasswordInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     if not verify_password(data.current_password, user.password_hash):
@@ -637,7 +637,7 @@ def list_clients(
     status: Optional[str] = None,
     assigned_am: Optional[str] = None,
     marketplace: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     q = get_org_scoped_query(db, user, Client)
@@ -665,7 +665,7 @@ def list_clients(
 @app.post("/clients")
 def add_client(
     data: ClientInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     client = Client(
@@ -692,7 +692,7 @@ def add_client(
 @app.get("/clients/{client_id}")
 def get_client(
     client_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     c = get_org_scoped_query(db, user, Client).filter(Client.id == client_id).first()
@@ -710,7 +710,7 @@ def get_client(
 def update_client(
     client_id: int,
     data: ClientUpdateInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     c = get_org_scoped_query(db, user, Client).filter(Client.id == client_id).first()
@@ -745,7 +745,7 @@ def reports_summary(
     end_date: Optional[str] = None,
     manager: Optional[str] = None,
     verdict: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     wq = get_org_scoped_query(db, user, WeeklyReport)
@@ -801,7 +801,7 @@ def reports_summary(
 def reports_kpi(
     manager: Optional[str] = None,
     period: Optional[str] = "monthly",
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     kpi_targets = {
@@ -863,7 +863,7 @@ def save_settings(
 
 
 @app.get("/settings")
-def get_settings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_settings(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     return {"keepa_api_key_set": bool(org and getattr(org, "keepa_api_key", None))}
 
@@ -872,7 +872,7 @@ def get_settings(user: User = Depends(get_current_user), db: Session = Depends(g
 @app.post("/analyze")
 def analyze_product(
     data: ProductInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
@@ -924,7 +924,7 @@ def analyze_product(
 
 
 @app.get("/products")
-def list_products(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_products(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     products = get_org_scoped_query(db, user, Product).order_by(Product.created_at.desc()).all()
     return {
         "count": len(products),
@@ -943,7 +943,7 @@ def list_products(user: User = Depends(get_current_user), db: Session = Depends(
 @app.post("/weekly")
 def add_weekly(
     data: WeeklyInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     roi_pct = round((data.profit / data.revenue * 100) if data.revenue > 0 else 0, 2)
@@ -961,7 +961,7 @@ def add_weekly(
 
 
 @app.get("/weekly")
-def list_weekly(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_weekly(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     weeks = get_org_scoped_query(db, user, WeeklyReport).order_by(WeeklyReport.week.desc()).all()
     return {
         "count": len(weeks),
@@ -979,7 +979,7 @@ def list_weekly(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 # ── Dashboard ───────────────────────────────────────────────────────────────────
 @app.get("/dashboard")
-def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def dashboard(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     weeks = get_org_scoped_query(db, user, WeeklyReport).all()
     products = get_org_scoped_query(db, user, Product).all()
     clients = get_org_scoped_query(db, user, Client).all()
@@ -1006,7 +1006,7 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
 @app.post("/suppliers")
 def add_supplier(
     data: SupplierInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     supplier = Supplier(
@@ -1023,7 +1023,7 @@ def add_supplier(
 
 
 @app.get("/suppliers")
-def list_suppliers(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_suppliers(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     suppliers = get_org_scoped_query(db, user, Supplier).order_by(Supplier.priority_score.desc()).all()
     return {
         "count": len(suppliers),
@@ -1040,7 +1040,7 @@ def list_suppliers(user: User = Depends(get_current_user), db: Session = Depends
 
 # ── Leaderboard ─────────────────────────────────────────────────────────────────
 @app.get("/leaderboard")
-def leaderboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def leaderboard(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     weeks = get_org_scoped_query(db, user, WeeklyReport).all()
     managers = {}
     for w in weeks:
@@ -1071,7 +1071,7 @@ class LookupInput(BaseModel):
 @app.post("/scout/lookup")
 def scout_lookup(
     data: LookupInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Lookup an ASIN via Keepa API and return product data without saving.
@@ -1109,7 +1109,7 @@ def scout_lookup(
 @app.post("/scout")
 def scout_product(
     data: ScoutInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     scoring = compute_fba_score(
@@ -1156,7 +1156,7 @@ def list_scouts(
     min_score: Optional[int] = None,
     max_score: Optional[int] = None,
     limit: Optional[int] = 50,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     q = get_org_scoped_query(db, user, ScoutResult)
@@ -1185,7 +1185,7 @@ def list_scouts(
 @app.delete("/scout/{asin}")
 def delete_scout(
     asin: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     result = get_org_scoped_query(db, user, ScoutResult).filter(ScoutResult.asin == asin).first()
@@ -1199,7 +1199,7 @@ def delete_scout(
 @app.post("/scout/bulk")
 def scout_bulk(
     data: BulkScoutInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     raw_asins = [a.strip().upper() for a in data.asins if a.strip()]
@@ -1261,7 +1261,7 @@ def scout_bulk(
 @app.get("/activity")
 def get_activity(
     limit: int = 20,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     logs = (
