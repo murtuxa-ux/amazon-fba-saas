@@ -16,11 +16,20 @@ Tables fall into four shapes:
   - Tier D: child tables, no org_id column (22 tables; EXISTS subquery
     against parent FK)
 
-The policy uses the lenient `current_setting(name, true)` form, which
-returns NULL when the setting is unset rather than raising. The cast to
-int therefore yields NULL outside a tenant_session, and the comparison
-`org_id = NULL` is NULL, so RLS denies the row. This is the desired
-behavior: outside a primed transaction, the app_role sees no rows.
+The policy uses `NULLIF(current_setting('app.current_org_id', true), '')::int`.
+Two reasons:
+  1. The lenient `current_setting(name, true)` form returns NULL when
+     the setting was never touched in this session — that's the easy
+     case.
+  2. Postgres custom GUCs that have been touched (via SET LOCAL in any
+     prior transaction on the same pooled connection) become "registered"
+     for the rest of the session; once registered, current_setting()
+     returns the empty string `''` after SET LOCAL's transaction ends,
+     NOT NULL. Without NULLIF, `''::int` raises `invalid input syntax
+     for type integer: ""`, which surfaces as a 500 on the next request
+     using a recycled connection that doesn't (yet) re-prime the GUC.
+NULLIF turns both '' and NULL into NULL; NULL = anything is NULL; the
+row is denied. Outside a primed transaction, the app_role sees no rows.
 
 The migration_role retains BYPASSRLS, so this migration itself runs
 unimpeded, and `alembic upgrade head` works during deploys.
@@ -147,8 +156,8 @@ def upgrade() -> None:
     op.execute("""
         CREATE POLICY tenant_isolation ON public.organizations
             FOR ALL TO PUBLIC
-            USING  (id = current_setting('app.current_org_id', true)::int)
-            WITH CHECK (id = current_setting('app.current_org_id', true)::int);
+            USING  (id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+            WITH CHECK (id = NULLIF(current_setting('app.current_org_id', true), '')::int);
     """)
 
     # ── Tier A ──────────────────────────────────────────────────────────────
@@ -157,8 +166,8 @@ def upgrade() -> None:
         op.execute(f"""
             CREATE POLICY tenant_isolation ON public.{t}
                 FOR ALL TO PUBLIC
-                USING  (org_id = current_setting('app.current_org_id', true)::int)
-                WITH CHECK (org_id = current_setting('app.current_org_id', true)::int);
+                USING  (org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+                WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::int);
         """)
 
     # ── Tier B (varchar org_id) ─────────────────────────────────────────────
@@ -167,8 +176,8 @@ def upgrade() -> None:
         op.execute(f"""
             CREATE POLICY tenant_isolation ON public.{t}
                 FOR ALL TO PUBLIC
-                USING  (org_id::int = current_setting('app.current_org_id', true)::int)
-                WITH CHECK (org_id::int = current_setting('app.current_org_id', true)::int);
+                USING  (org_id::int = NULLIF(current_setting('app.current_org_id', true), '')::int)
+                WITH CHECK (org_id::int = NULLIF(current_setting('app.current_org_id', true), '')::int);
         """)
 
     # ── Tier C (nullable → backfill + SET NOT NULL, then Tier A policy) ─────
@@ -181,8 +190,8 @@ def upgrade() -> None:
         op.execute(f"""
             CREATE POLICY tenant_isolation ON public.{t}
                 FOR ALL TO PUBLIC
-                USING  (org_id = current_setting('app.current_org_id', true)::int)
-                WITH CHECK (org_id = current_setting('app.current_org_id', true)::int);
+                USING  (org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+                WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::int);
         """)
 
     # ── Tier D (child tables via EXISTS subquery on parent FK) ──────────────
@@ -195,12 +204,12 @@ def upgrade() -> None:
                 USING (EXISTS (
                     SELECT 1 FROM public.{parent} p
                     WHERE p.id = public.{child}.{fk}
-                      AND {parent_org_expr} = current_setting('app.current_org_id', true)::int
+                      AND {parent_org_expr} = NULLIF(current_setting('app.current_org_id', true), '')::int
                 ))
                 WITH CHECK (EXISTS (
                     SELECT 1 FROM public.{parent} p
                     WHERE p.id = public.{child}.{fk}
-                      AND {parent_org_expr} = current_setting('app.current_org_id', true)::int
+                      AND {parent_org_expr} = NULLIF(current_setting('app.current_org_id', true), '')::int
                 ));
         """)
 
