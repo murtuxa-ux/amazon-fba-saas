@@ -1,0 +1,108 @@
+name: tenant-isolation
+
+# Runs the tenant isolation acceptance suite + the unscoped-query lint
+# from PR C-2 (P0/§2.1). Postgres 18 to match prod exactly.
+#
+# To make this a required check on `main`: GitHub → Settings → Branches →
+# Branch protection rules → main → "Require status checks to pass" →
+# add `tenant-isolation / pytest`. Don't preemptively require it before
+# the first green run on the PR — a never-run check blocks all merges.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecomera_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # The conftest reads DATABASE_URL via backend/database.py and runs
+      # the tests with RLS_ENFORCED=true (set inside conftest.py before
+      # any backend module is imported).
+      DATABASE_URL: postgresql://migration_role:ci_migration_pw@localhost:5432/ecomera_test
+      # JWT/Stripe envs that backend modules expect at import time. The
+      # values are dummies — no external service is contacted in CI.
+      JWT_SECRET: ci-test-secret-do-not-use-in-prod
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRY_HOURS: "24"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest
+
+      - name: Bootstrap Postgres roles
+        # Mirror the prod role split established in PR C-1
+        # (docs/postgres-roles-setup.md): migration_role owns tables and
+        # has BYPASSRLS so alembic can run freely; app_role has DML grants
+        # only and is NOBYPASSRLS, so RLS actually applies to it.
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ecomera_test <<'SQL'
+          CREATE ROLE migration_role
+            WITH LOGIN
+                 PASSWORD 'ci_migration_pw'
+                 CREATEROLE
+                 BYPASSRLS;
+          CREATE ROLE app_role
+            WITH LOGIN
+                 PASSWORD 'ci_app_pw'
+                 NOBYPASSRLS;
+          GRANT ALL ON SCHEMA public TO migration_role;
+          ALTER SCHEMA public OWNER TO migration_role;
+          GRANT USAGE ON SCHEMA public TO app_role;
+          ALTER DEFAULT PRIVILEGES FOR ROLE migration_role IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_role;
+          ALTER DEFAULT PRIVILEGES FOR ROLE migration_role IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO app_role;
+          SQL
+
+      - name: Run alembic upgrade head as migration_role
+        working-directory: backend
+        run: |
+          alembic upgrade head
+
+      - name: Verify schema state
+        env:
+          PGPASSWORD: ci_migration_pw
+        run: |
+          psql -h localhost -U migration_role -d ecomera_test -c "SELECT version_num FROM alembic_version;"
+          # Sanity check: RLS should be enabled on a representative table.
+          psql -h localhost -U migration_role -d ecomera_test -c \
+            "SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'clients';"
+
+      - name: Run tenant isolation tests
+        working-directory: backend
+        run: |
+          pytest tests/test_tenant_isolation.py tests/test_query_lint.py -v
