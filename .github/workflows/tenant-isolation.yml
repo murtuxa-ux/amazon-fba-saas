@@ -66,6 +66,24 @@ jobs:
         # (docs/postgres-roles-setup.md): migration_role owns tables and
         # has BYPASSRLS so alembic can run freely; app_role has DML grants
         # only and is NOBYPASSRLS, so RLS actually applies to it.
+        #
+        # Critical role-membership grants (without these, SET LOCAL ROLE
+        # fails with "permission denied to set role"):
+        #
+        #   GRANT app_role TO migration_role
+        #     The runtime DB connection in CI uses migration_role (per
+        #     DATABASE_URL). Inside the request transaction, tenant_session
+        #     issues SET LOCAL ROLE app_role. Postgres requires the current
+        #     role to be a member of the target role to switch into it
+        #     (BYPASSRLS does NOT confer SET ROLE rights — the two are
+        #     orthogonal). This grant gives migration_role the membership
+        #     it needs to switch into app_role.
+        #
+        #   GRANT migration_role, app_role TO postgres
+        #     Belt-and-suspenders so the postgres superuser (used for
+        #     bootstrap psql commands and any later workflow step that
+        #     connects as postgres) can also pivot into either role for
+        #     diagnostic SQL.
         env:
           PGPASSWORD: postgres
         run: |
@@ -79,6 +97,11 @@ jobs:
             WITH LOGIN
                  PASSWORD 'ci_app_pw'
                  NOBYPASSRLS;
+          -- Membership grants (see comment in the workflow).
+          GRANT app_role TO migration_role;
+          GRANT migration_role TO postgres;
+          GRANT app_role       TO postgres;
+          -- Schema ownership + DML grants — mirrors prod docs/postgres-roles-setup.md.
           GRANT ALL ON SCHEMA public TO migration_role;
           ALTER SCHEMA public OWNER TO migration_role;
           GRANT USAGE ON SCHEMA public TO app_role;
