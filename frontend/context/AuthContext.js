@@ -70,7 +70,14 @@ async function apiMe(token) {
   const resp = await fetch(`${API_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!resp.ok) throw new Error("Token invalid");
+  if (!resp.ok) {
+    // Tag the error with the status so the caller can distinguish a real
+    // 401 (token actually invalid → clear and log out) from a transient
+    // failure (network blip, 5xx → keep session, retry later).
+    const err = new Error(`auth/me failed with status ${resp.status}`);
+    err.status = resp.status;
+    throw err;
+  }
   return resp.json();
 }
 
@@ -81,37 +88,67 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount: check localStorage for existing session
+  // On mount: check localStorage for existing session.
+  //
+  // This used to await /auth/me before flipping `loading` to false, AND
+  // it cleared localStorage on ANY apiMe error (network blip, 5xx,
+  // transformer hiccup, real 401 — they all hit the same .catch).
+  // The result on refresh: any transient hiccup wiped the user's
+  // session and bounced them back to /login. (Issue #15, Bug A
+  // refresh-persistence regression — separate from the original
+  // redirect-loop fix in PR #19.)
+  //
+  // The fix splits hydration from validation:
+  //   1. Hydrate from localStorage synchronously → user and loading
+  //      flip together, AuthGuard can render the protected page on
+  //      the very next render.
+  //   2. Run apiMe in the background. Refresh user data on success.
+  //      On 401 (token actually dead), clear and log out. On any other
+  //      error, KEEP the session — a real bad token will surface as a
+  //      401 on the user's next protected fetch, where dedicated
+  //      logout-on-401 handling can take over.
   useEffect(() => {
     const token = getToken();
     const storedUser = getStoredUser();
 
-    if (token && storedUser) {
-      setUser(storedUser);
-      // Validate token in background
-      apiMe(token)
-        .then((data) => {
-          const u = {
-            username: data.username,
-            name: data.name,
-            role: data.role,
-            email: data.email,
-            avatar: data.avatar,
-            org_id: data.org_id,
-            org_name: data.org_name,
-          };
-          setUser(u);
-          setStoredUser(u);
-        })
-        .catch(() => {
-          removeToken();
-          setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
+    if (!token || !storedUser) {
+      // Nothing to hydrate. Clean up any half-written state and finish.
       removeToken();
       setLoading(false);
+      return;
     }
+
+    // Trust storage. Render the dashboard.
+    setUser(storedUser);
+    setLoading(false);
+
+    // Background validation — best-effort.
+    apiMe(token)
+      .then((data) => {
+        const u = {
+          username: data.username,
+          name: data.name,
+          role: data.role,
+          email: data.email,
+          avatar: data.avatar,
+          org_id: data.org_id,
+          org_name: data.org_name,
+        };
+        setUser(u);
+        setStoredUser(u);
+      })
+      .catch((err) => {
+        if (err && err.status === 401) {
+          // Token genuinely invalid (expired, revoked, or signed by a
+          // different secret after a JWT_SECRET rotation). Clear and
+          // sign out.
+          removeToken();
+          setUser(null);
+        }
+        // For any other error (network, 5xx, CORS, transformer noise),
+        // do nothing. The user keeps their session; a later 401 on a
+        // real protected fetch is the correct trigger for logout.
+      });
   }, []);
 
   // Listen for storage changes (e.g., login.js sets token directly)
