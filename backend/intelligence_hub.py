@@ -241,7 +241,6 @@ def get_risk_level(risk_score: float) -> str:
 
 @router.get("/dashboard")
 def get_intelligence_dashboard(
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> DashboardResponse:
@@ -249,9 +248,7 @@ def get_intelligence_dashboard(
     Get unified intelligence overview dashboard.
     Returns top opportunities, active alerts, risk summary, market trends, and stats.
     """
-    # Verify organization access
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     # Get top 5 opportunities (highest overall scores, not dismissed)
     top_opportunities = db.query(ProductScore).filter(
@@ -384,7 +381,6 @@ def get_intelligence_dashboard(
 
 @router.get("/alerts")
 def list_alerts(
-    org_id: int = Query(...),
     alert_type: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     is_read: Optional[bool] = Query(None),
@@ -399,8 +395,7 @@ def list_alerts(
     List alerts with filtering options.
     Supports filtering by type, severity, read status, and date range.
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     query = db.query(IntelligenceAlert).filter(IntelligenceAlert.org_id == org_id)
 
@@ -459,13 +454,11 @@ def list_alerts(
 @router.put("/alerts/{alert_id}/read")
 def mark_alert_read(
     alert_id: int,
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> IntelligenceAlertResponse:
     """Mark a specific alert as read"""
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     alert = db.query(IntelligenceAlert).filter(
         IntelligenceAlert.id == alert_id,
@@ -498,13 +491,11 @@ def mark_alert_read(
 @router.put("/alerts/{alert_id}/dismiss")
 def dismiss_alert(
     alert_id: int,
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> IntelligenceAlertResponse:
     """Dismiss a specific alert"""
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     alert = db.query(IntelligenceAlert).filter(
         IntelligenceAlert.id == alert_id,
@@ -536,13 +527,11 @@ def dismiss_alert(
 
 @router.put("/alerts/read-all")
 def mark_all_alerts_read(
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Mark all alerts as read for the organization"""
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     updated_count = db.query(IntelligenceAlert).filter(
         IntelligenceAlert.org_id == org_id,
@@ -561,7 +550,6 @@ def mark_all_alerts_read(
 def score_product(
     asin: str,
     score_data: ProductScoreCreate,
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> ProductScoreResponse:
@@ -569,8 +557,7 @@ def score_product(
     Score a product on opportunity, risk, demand, and competition.
     Creates or updates the score for the given ASIN.
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     if score_data.asin != asin:
         raise HTTPException(status_code=400, detail="ASIN in path and body do not match")
@@ -638,7 +625,6 @@ def score_product(
 
 @router.get("/scores")
 def list_product_scores(
-    org_id: int = Query(...),
     sort_by: str = Query("overall_score", regex="^(overall_score|opportunity_score|risk_score|demand_score|competition_score)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -649,8 +635,7 @@ def list_product_scores(
     List scored products, sorted by specified metric.
     Default sort is by overall_score (descending).
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     # Map sort_by to column
     sort_columns = {
@@ -695,13 +680,11 @@ def list_product_scores(
 @router.get("/scores/{asin}")
 def get_product_score_detail(
     asin: str,
-    org_id: int = Query(...),
     current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> ProductScoreResponse:
     """Get detailed score breakdown for a specific product"""
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     score = db.query(ProductScore).filter(
         ProductScore.org_id == org_id,
@@ -728,7 +711,6 @@ def get_product_score_detail(
 
 @router.get("/opportunities")
 def get_top_opportunities(
-    org_id: int = Query(...),
     min_score: float = Query(60.0, ge=0, le=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -739,8 +721,7 @@ def get_top_opportunities(
     Get top product opportunities based on opportunity score.
     Filters products with opportunity_score >= min_score.
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     query = db.query(ProductScore).filter(
         ProductScore.org_id == org_id,
@@ -778,7 +759,6 @@ def get_top_opportunities(
 
 @router.get("/risks")
 def get_flagged_risks(
-    org_id: int = Query(...),
     min_risk_score: float = Query(50.0, ge=0, le=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -789,8 +769,7 @@ def get_flagged_risks(
     Get products flagged as risky based on risk score.
     Filters products with risk_score >= min_risk_score.
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     query = db.query(ProductScore).filter(
         ProductScore.org_id == org_id,
@@ -828,7 +807,6 @@ def get_flagged_risks(
 
 @router.get("/trends")
 def get_market_trends(
-    org_id: int = Query(...),
     days: int = Query(30, ge=1, le=365),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -839,8 +817,7 @@ def get_market_trends(
     Get category and market trend data from trend alerts.
     Returns trends from the last N days (default 30).
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     date_from = datetime.utcnow() - timedelta(days=days)
 
@@ -881,7 +858,6 @@ def get_market_trends(
 
 @router.get("/competitor-watch")
 def get_competitor_watch(
-    org_id: int = Query(...),
     days: int = Query(7, ge=1, le=90),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -892,8 +868,7 @@ def get_competitor_watch(
     Get competitor activity summary from competitor alerts.
     Returns competitor activity from the last N days (default 7).
     """
-    if current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    org_id = current_user.org_id
 
     date_from = datetime.utcnow() - timedelta(days=days)
 

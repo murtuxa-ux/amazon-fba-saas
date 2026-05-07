@@ -3,12 +3,14 @@ Ecom Era FBA SaaS v6.0 — Main Application
 Multi-tenant, JWT-authenticated API built with FastAPI and PostgreSQL
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
+import traceback
 import uuid
 
 from config import settings
@@ -98,6 +100,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Global exception handler ────────────────────────────────────────────────
+# 11 endpoints currently surface as opaque 500s (audit run 2026-05-07). Without
+# a handler, FastAPI's default 500 response body is just {"detail":"Internal
+# Server Error"} — operators see the same string for every distinct fault and
+# can't triage from logs alone (Railway logs DO include the traceback, but
+# correlating a specific request to a specific stack trace requires
+# request-id matching that we don't yet emit).
+#
+# This handler:
+#   1. Logs the full traceback to stderr so Railway captures it.
+#   2. Returns the exception type name in the response body so operators
+#      can grep logs for the matching trace AND so the frontend can show
+#      a slightly-less-opaque message.
+#
+# HTTPException is NOT caught here — FastAPI handles those itself with the
+# status_code the route raised. This handler only kicks in for uncaught
+# exceptions (the 500 path).
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    _log.error(
+        "Unhandled exception on %s %s: %s\n%s",
+        request.method, request.url.path, type(exc).__name__, tb,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "exception_type": type(exc).__name__,
+            "path": request.url.path,
+        },
+    )
+
 
 # Include routers
 app.include_router(billing_router)

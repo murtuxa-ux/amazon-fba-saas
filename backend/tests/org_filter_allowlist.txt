@@ -44,14 +44,14 @@
 # those uniqueness invariants in the table schema.
 
 backend/auth.py:103       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
-backend/main.py:342       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
-backend/main.py:344       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as :342
-backend/main.py:375       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
-backend/main.py:377       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
-backend/main.py:433       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
-backend/main.py:489       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
-backend/main.py:539       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
-backend/main.py:153       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
+backend/main.py:379       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
+backend/main.py:381       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as :342
+backend/main.py:412       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
+backend/main.py:414       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
+backend/main.py:470       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
+backend/main.py:526       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
+backend/main.py:576       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
+backend/main.py:190       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
 backend/ppc_action_plan.py:962  # reason: custom JWT decode route — fetches User by uid from token before any tenant_session priming, identical to get_current_user pattern
 backend/websocket_manager.py:221  # reason: WS handshake — fetches User by id from JWT subprotocol token before connection is admitted; runs in WS lifecycle pre-tenant_session, mirrors get_current_user
 
@@ -88,8 +88,8 @@ backend/account_health_monitor.py:449        # reason: query = db.query(AccountV
 backend/brand_approval_tracker.py:300        # reason: query = db.query(BrandApproval).filter(BrandApproval.org_id == get_user_org_scope(current_user)) — org_id filter via helper on the same statement
 backend/fba_shipment_planner.py:301          # reason: query = db.query(FBAShipment).filter(FBAShipment.org_id == current_user.org_id) — org_id filter on the same statement
 backend/fbm_order_manager.py:350             # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id) — org_id filter on the same statement
-backend/fbm_order_manager.py:797             # reason: base_query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.created_at >= period_start) — org_id filter on the same statement
-backend/fbm_order_manager.py:1055            # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.status.in_(...)) — org_id filter on the same statement
+backend/fbm_order_manager.py:887             # reason: base_query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.created_at >= period_start) — org_id filter on the same statement
+backend/fbm_order_manager.py:518            # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.status.in_(...)) — org_id filter on the same statement
 backend/ppc_advanced.py:359                  # reason: query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id, PPCCampaign.client_id == client_id) — org_id filter on the same statement
 backend/ppc_advanced.py:586                  # reason: campaign lookup by id where the parent PPCBudgetPacing.id was already org-scoped two statements above; child cross-FK lookup, RLS catches via Tier D EXISTS policy on PPCCampaign post-flip
 backend/ppc_manager.py:466                   # reason: query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id) — org_id filter on the same statement

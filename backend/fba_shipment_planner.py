@@ -353,6 +353,26 @@ async def create_shipment(
     return new_shipment
 
 
+@router.get("/prep-requirements", response_model=PrepGuidelinesResponse)
+async def get_prep_requirements(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(tenant_session),
+):
+    """Get FBA prep requirement guidelines."""
+    guidelines = [PrepRequirements(**g) for g in PREP_GUIDELINES]
+
+    logger.info(f"User {current_user.id} viewed prep requirements")
+
+    return PrepGuidelinesResponse(
+        guidelines=guidelines,
+        common_prep_types=COMMON_PREP_TYPES,
+        fba_labeling_requirements=(
+            "All items shipped to FBA must have a barcode label. For bundles, "
+            "each unit requires its own label. Commingled inventory may use FNSKU labels."
+        ),
+    )
+
+
 @router.get("/{id}", response_model=FBAShipmentDetailResponse)
 async def get_shipment(
     id: int,
@@ -730,26 +750,6 @@ async def get_dashboard_metrics(
 # ============================================================================
 # ENDPOINTS: PREP GUIDELINES AND COST ESTIMATES
 # ============================================================================
-
-@router.get("/prep-requirements", response_model=PrepGuidelinesResponse)
-async def get_prep_requirements(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(tenant_session),
-):
-    """Get FBA prep requirement guidelines."""
-    guidelines = [PrepRequirements(**g) for g in PREP_GUIDELINES]
-
-    logger.info(f"User {current_user.id} viewed prep requirements")
-
-    return PrepGuidelinesResponse(
-        guidelines=guidelines,
-        common_prep_types=COMMON_PREP_TYPES,
-        fba_labeling_requirements=(
-            "All items shipped to FBA must have a barcode label. For bundles, "
-            "each unit requires its own label. Commingled inventory may use FNSKU labels."
-        ),
-    )
-
 
 @router.post("/estimate-cost", response_model=ShippingCostEstimate)
 async def estimate_shipping_cost(
