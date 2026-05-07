@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text, desc
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, require_role, hash_password
+from auth import get_current_user, require_role, hash_password, tenant_session
 from models import User, Organization, ActivityLog
 from database import get_db
 
@@ -268,7 +268,7 @@ def verify_username_unique(db: Session, username: str, org_id: int, exclude_user
 
 @router.get("/users", response_model=UserListResponseSchema)
 def list_users(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -313,7 +313,7 @@ def list_users(
 @router.post("/users", response_model=UserResponseSchema, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_data: UserCreateSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -389,7 +389,7 @@ def create_user(
 @router.get("/users/{user_id}", response_model=UserResponseSchema)
 def get_user(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get user details"""
@@ -411,7 +411,7 @@ def get_user(
 def update_user(
     user_id: int,
     user_data: UserUpdateSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -497,7 +497,7 @@ def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_user(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -553,7 +553,7 @@ def deactivate_user(
 def reset_user_password(
     user_id: int,
     password_data: PasswordResetSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -598,7 +598,7 @@ def reset_user_password(
 @router.put("/profile", response_model=UserResponseSchema)
 def update_profile(
     profile_data: ProfileUpdateSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -639,7 +639,7 @@ def update_profile(
 @router.put("/change-password")
 def change_password(
     password_data: PasswordChangeSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -705,7 +705,7 @@ def list_roles():
 
 @router.get("/activity", response_model=ActivityListResponseSchema)
 def get_activity_log(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -745,7 +745,7 @@ def get_activity_log(
 
 @router.get("/stats", response_model=TeamStatsSchema)
 def get_team_stats(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -799,7 +799,7 @@ def get_team_stats(
 @router.post("/users/{user_id}/toggle-active")
 def toggle_user_active(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """

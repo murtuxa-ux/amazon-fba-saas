@@ -13,7 +13,7 @@ from sqlalchemy import and_, or_, func, text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db
 from models import User, Organization, BrandApproval, BrandDocument, BrandTimeline
 
@@ -284,7 +284,7 @@ def list_brand_approvals(
     priority: Optional[Priority] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -326,7 +326,7 @@ def list_brand_approvals(
 @router.post("/", response_model=BrandApprovalResponse, status_code=status.HTTP_201_CREATED)
 def create_brand_approval(
     approval: BrandApprovalCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -380,7 +380,7 @@ def create_brand_approval(
 @router.get("/{approval_id}", response_model=BrandApprovalResponse)
 def get_brand_approval(
     approval_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get detailed approval status with timeline"""
@@ -409,7 +409,7 @@ def get_brand_approval(
 def update_brand_approval(
     approval_id: int,
     update_data: BrandApprovalUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Update brand approval status, priority, or notes"""
@@ -466,7 +466,7 @@ def update_brand_approval(
 @router.delete("/{approval_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_brand_approval(
     approval_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Delete a brand approval request"""
@@ -506,7 +506,7 @@ def delete_brand_approval(
 def add_document_to_approval(
     approval_id: int,
     document: DocumentCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -561,7 +561,7 @@ def add_document_to_approval(
 @router.get("/{approval_id}/documents", response_model=List[DocumentChecklistItem])
 def get_approval_documents(
     approval_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get all document checklist items for an approval request"""
@@ -595,7 +595,7 @@ def update_document_status(
     approval_id: int,
     doc_id: int,
     update_data: DocumentUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Update document submission or verification status"""
@@ -658,7 +658,7 @@ def update_document_status(
 def add_timeline_event(
     approval_id: int,
     event: TimelineEventCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -704,7 +704,7 @@ def add_timeline_event(
 
 @router.get("/stats/dashboard", response_model=ApprovalStats)
 def get_approval_stats(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -861,7 +861,7 @@ def get_common_document_templates(category: Optional[str] = Query(None)):
 @router.get("/templates/checklist/{category}")
 def get_category_checklist(
     category: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get pre-populated checklist for a specific category"""

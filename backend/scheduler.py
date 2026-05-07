@@ -10,7 +10,7 @@ import asyncio
 from enum import Enum
 import logging
 
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, tenant_session
 from models import User
 from database import get_db
 from sqlalchemy.orm import Session
@@ -208,7 +208,7 @@ async def run_task(task_name: str, db: Session) -> Dict[str, Any]:
 @router.post("/trigger/{task_name}")
 async def trigger_task(
     task_name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -247,7 +247,7 @@ async def trigger_task(
 
 @router.get("/tasks")
 async def get_tasks(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ) -> List[Dict[str, Any]]:
     """
     Get list of all registered tasks with their status
@@ -268,7 +268,7 @@ async def get_tasks(
 
 @router.get("/history")
 async def get_history(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     limit: int = 50,
     task_name: Optional[str] = None
 ) -> List[Dict[str, Any]]:
@@ -288,7 +288,7 @@ async def get_history(
 @router.post("/toggle/{task_name}")
 async def toggle_task(
     task_name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -325,7 +325,7 @@ async def toggle_task(
 @router.get("/status/{task_name}")
 async def get_task_status(
     task_name: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ) -> Dict[str, Any]:
     """
     Get detailed status of a specific task

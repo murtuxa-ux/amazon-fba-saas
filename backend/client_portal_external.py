@@ -11,6 +11,51 @@ This module provides a separate portal for Ecom Era's wholesale clients to:
 Two categories of endpoints:
 1. Internal (Ecom Era team) - manage portal access
 2. Client-facing - view reports, inventory, messages
+
+──────────────────────────────────────────────────────────────────────────
+NOTE: this file is intentionally EXCLUDED from the PR C-2 tenant_session
+sweep that every other route file received.
+
+Why excluded:
+- Client-facing endpoints in this module authenticate as ClientPortalUser
+  (a separate identity backed by the `client_portal_users` table), not as
+  the team-side `User` that tenant_session is keyed on. Wiring those
+  routes through tenant_session would require either re-deriving org_id
+  from the ClientPortalUser claims and building a parallel
+  client_portal_tenant_session, or — better — promoting the existing
+  client-portal JWT to carry org_id alongside client_portal_user_id and
+  pointing the same dependency at it.
+- The team-side endpoints in this module that do use the team `User`
+  (the "manage portal access" half) are low-traffic and the existing
+  application-level `org_id == user.org_id` filters are still in place,
+  so RLS-as-second-layer is the only protection missing — not first-line
+  isolation.
+
+Risk while excluded:
+  When RLS_ENFORCED=true is flipped, requests to `/client-portal-ext/*`
+  endpoints will run as migration_role (the connection-level role from
+  DATABASE_URL) — they bypass RLS entirely. That means a missed
+  application-level org_id filter in this file is NOT caught by the
+  database. The query lint test in backend/tests/test_query_lint.py is
+  the only safety net for this module until it joins the sweep.
+
+Why now:
+  Client portal is read-mostly today. The team-side endpoints have
+  intact org_id filters (verified during the C-1 audit). The cost of
+  designing the parallel dependency is non-trivial and would have
+  delayed the broader RLS rollout.
+
+Follow-up: tracked as a P1 GitHub issue. Action items there:
+  1. Promote client-portal JWT to include org_id claim.
+  2. Build client_portal_tenant_session(...) -> ClientPortalUser that
+     primes app.current_org_id the same way tenant_session does for
+     team users.
+  3. Sweep this file: Depends(get_current_user) → Depends(tenant_session)
+     for team-side routes (already RLS-safe via tenant_session) and
+     Depends(get_current_client_portal_user) →
+     Depends(client_portal_tenant_session) for client-facing routes.
+  4. Remove this comment block.
+──────────────────────────────────────────────────────────────────────────
 """
 
 import logging

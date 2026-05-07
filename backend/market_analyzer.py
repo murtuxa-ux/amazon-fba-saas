@@ -10,7 +10,7 @@ from sqlalchemy import desc, func, and_
 from config import settings
 from database import get_db
 from models import ScoutResult
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/market", tags=["Market Intelligence"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/market", tags=["Market Intelligence"])
 @router.get("/overview")
 async def get_market_overview(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get overall market analysis overview.
@@ -74,7 +74,7 @@ async def get_market_overview(
 @router.get("/trends")
 async def get_market_trends(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(10, ge=1, le=50),
 ):
     """
@@ -127,7 +127,7 @@ async def get_market_trends(
 async def get_category_analysis(
     category: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get detailed analysis for a specific category.

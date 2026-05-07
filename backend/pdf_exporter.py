@@ -18,7 +18,7 @@ from models import (
     User, Organization, Product, Client, WeeklyReport,
     ScoutResult, Supplier, ActivityLog
 )
-from auth import get_current_user, require_role, get_org_scoped_query
+from auth import get_current_user, require_role, get_org_scoped_query, tenant_session
 from config import settings
 
 
@@ -461,7 +461,7 @@ def generate_client_overview_html(org_id: str, db: Session) -> str:
 @router.get("/report/{report_type}")
 async def export_report(
     report_type: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -500,7 +500,7 @@ async def export_report(
 @router.get("/csv/{data_type}")
 async def export_csv(
     data_type: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """

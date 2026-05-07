@@ -8,11 +8,11 @@ from datetime import datetime
 
 from database import get_db
 from models import Organization, User, Client, Supplier, ScoutResult
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from stripe_billing import get_plan_limits
 
 
-def enforce_user_limit(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def enforce_user_limit(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     """Check user count against plan limit (use when adding team members)"""
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     limits = get_plan_limits(org.plan)
@@ -25,7 +25,7 @@ def enforce_user_limit(user: User = Depends(get_current_user), db: Session = Dep
     return user
 
 
-def enforce_client_limit(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def enforce_client_limit(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     """Check client count against plan limit"""
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     limits = get_plan_limits(org.plan)
@@ -38,7 +38,7 @@ def enforce_client_limit(user: User = Depends(get_current_user), db: Session = D
     return user
 
 
-def enforce_supplier_limit(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def enforce_supplier_limit(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     """Check supplier count against plan limit"""
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     limits = get_plan_limits(org.plan)
@@ -51,7 +51,7 @@ def enforce_supplier_limit(user: User = Depends(get_current_user), db: Session =
     return user
 
 
-def enforce_scout_limit(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def enforce_scout_limit(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
     """Check monthly scout usage against plan limit"""
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     limits = get_plan_limits(org.plan)
@@ -70,7 +70,7 @@ def enforce_scout_limit(user: User = Depends(get_current_user), db: Session = De
 
 def require_feature(feature_name: str):
     """Dependency factory: ensures org has a feature enabled"""
-    def checker(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    def checker(user: User = Depends(tenant_session), db: Session = Depends(get_db)):
         org = db.query(Organization).filter(Organization.id == user.org_id).first()
         limits = get_plan_limits(org.plan)
         if not limits.get(feature_name, False):

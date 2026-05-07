@@ -37,7 +37,7 @@ from collections import defaultdict
 import math
 
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User, Organization
 
 router = APIRouter(prefix="/dwm", tags=["DWM Reporting"])
@@ -194,7 +194,7 @@ def _week_range(year: int, week: int):
 @router.post("/daily")
 def create_daily_log(
     data: DailyLogInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     log_date = _parse_date(data.log_date)
@@ -264,7 +264,7 @@ def list_daily_logs(
     end_date: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     q = db.query(DWMDailyLog).filter(DWMDailyLog.org_id == user.org_id)
@@ -317,7 +317,7 @@ def list_daily_logs(
 def update_daily_log(
     log_id: int,
     data: DailyLogUpdateInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     log = db.query(DWMDailyLog).filter(DWMDailyLog.id == log_id, DWMDailyLog.org_id == user.org_id).first()
@@ -355,7 +355,7 @@ def update_daily_log(
 @router.delete("/daily/{log_id}")
 def delete_daily_log(
     log_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     log = db.query(DWMDailyLog).filter(DWMDailyLog.id == log_id, DWMDailyLog.org_id == user.org_id).first()
@@ -376,7 +376,7 @@ def delete_daily_log(
 @router.post("/approval")
 def create_approval(
     data: ApprovalInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     d = _parse_date(data.approval_date)
@@ -407,7 +407,7 @@ def list_approvals(
     month: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     q = db.query(DWMApproval).filter(DWMApproval.org_id == user.org_id)
@@ -439,7 +439,7 @@ def list_approvals(
 def update_approval(
     approval_id: int,
     data: ApprovalUpdateInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     a = db.query(DWMApproval).filter(DWMApproval.id == approval_id, DWMApproval.org_id == user.org_id).first()
@@ -457,7 +457,7 @@ def update_approval(
 @router.delete("/approval/{approval_id}")
 def delete_approval(
     approval_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     a = db.query(DWMApproval).filter(DWMApproval.id == approval_id, DWMApproval.org_id == user.org_id).first()
@@ -478,7 +478,7 @@ def get_weekly_summaries(
     week: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     role_type: Optional[str] = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Auto-aggregate daily logs into weekly summaries per team member."""
@@ -581,7 +581,7 @@ def get_monthly_summaries(
     month: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     role_type: Optional[str] = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Auto-aggregate daily logs into monthly summaries per team member."""
@@ -702,7 +702,7 @@ def management_dashboard(
     year: Optional[int] = Query(None),
     week: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -822,7 +822,7 @@ def get_leaderboard(
     year: Optional[int] = Query(None),
     week: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     now = date.today()
@@ -883,7 +883,7 @@ def get_leaderboard(
 
 @router.get("/team-members")
 def get_team_members(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     members = db.query(User).filter(User.org_id == user.org_id, User.is_active == True).all()

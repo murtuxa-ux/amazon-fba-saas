@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from decimal import Decimal
 import math
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -407,7 +407,7 @@ async def list_pl_statements(
     period_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(PLStatement).filter(PLStatement.org_id == current_user.org_id)
 
@@ -457,7 +457,7 @@ async def list_pl_statements(
 async def create_pl_statement(
     pl_data: PLStatementCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     pl = PLStatement(
         org_id=current_user.org_id,
@@ -521,7 +521,7 @@ async def create_pl_statement(
 async def get_pl_statement(
     statement_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     pl = db.query(PLStatement).filter(
         PLStatement.id == statement_id,
@@ -567,7 +567,7 @@ async def update_pl_statement(
     statement_id: int,
     pl_data: PLStatementUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     pl = db.query(PLStatement).filter(
         PLStatement.id == statement_id,
@@ -620,7 +620,7 @@ async def update_pl_statement(
 async def calculate_pl(
     statement_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     pl = db.query(PLStatement).filter(
         PLStatement.id == statement_id,
@@ -649,7 +649,7 @@ async def calculate_pl(
 async def finalize_pl(
     statement_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     pl = db.query(PLStatement).filter(
         PLStatement.id == statement_id,
@@ -671,7 +671,7 @@ async def finalize_pl(
 @router.get("/expense-categories")
 async def list_expense_categories(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     categories = db.query(ExpenseCategory).filter(
         ExpenseCategory.org_id == current_user.org_id
@@ -692,7 +692,7 @@ async def list_expense_categories(
 async def create_expense_category(
     category_data: ExpenseCategoryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     category = ExpenseCategory(
         org_id=current_user.org_id,
@@ -719,7 +719,7 @@ async def list_expenses(
     client_id: Optional[int] = Query(None),
     pl_statement_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(ExpenseEntry).filter(ExpenseEntry.org_id == current_user.org_id)
 
@@ -750,7 +750,7 @@ async def list_expenses(
 async def create_expense(
     expense_data: ExpenseEntryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     entry = ExpenseEntry(
         org_id=current_user.org_id,
@@ -785,7 +785,7 @@ async def list_invoices(
     client_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(Invoice).filter(Invoice.org_id == current_user.org_id)
 
@@ -821,7 +821,7 @@ async def list_invoices(
 async def create_invoice(
     invoice_data: InvoiceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     invoice_number = generate_invoice_number(db, current_user.org_id)
     total = float(invoice_data.subtotal) + float(invoice_data.tax_amount)
@@ -865,7 +865,7 @@ async def create_invoice(
 async def get_invoice(
     invoice_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     invoice = db.query(Invoice).filter(
         Invoice.id == invoice_id,
@@ -898,7 +898,7 @@ async def update_invoice(
     invoice_id: int,
     invoice_data: InvoiceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     invoice = db.query(Invoice).filter(
         Invoice.id == invoice_id,
@@ -930,7 +930,7 @@ async def update_invoice(
 async def send_invoice(
     invoice_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     invoice = db.query(Invoice).filter(
         Invoice.id == invoice_id,
@@ -951,7 +951,7 @@ async def mark_invoice_paid(
     invoice_id: int,
     payment_method: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     invoice = db.query(Invoice).filter(
         Invoice.id == invoice_id,
@@ -975,7 +975,7 @@ async def mark_invoice_paid(
 async def list_cash_flow(
     client_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(CashFlowProjection).filter(CashFlowProjection.org_id == current_user.org_id)
 
@@ -1006,7 +1006,7 @@ async def list_cash_flow(
 async def generate_projection(
     client_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     projection = project_cash_flow(db, current_user.org_id, client_id)
     db.add(projection)
@@ -1028,7 +1028,7 @@ async def generate_projection(
 @router.get("/dashboard")
 async def get_finance_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     # Total revenue and profit across all clients
     all_statements = db.query(PLStatement).filter(

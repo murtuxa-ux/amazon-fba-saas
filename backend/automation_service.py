@@ -15,7 +15,7 @@ import json
 import logging
 
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -419,7 +419,7 @@ Report generated: {datetime.utcnow().isoformat()}"""
 def create_automation_rule(
     rule_data: AutomationRuleCreateSchema,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> AutomationRule:
     """
     Create a new automation rule for the organization.
@@ -467,7 +467,7 @@ def list_automation_rules(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> List[AutomationRule]:
     """
     List all automation rules for the organization.
@@ -497,7 +497,7 @@ def list_automation_rules(
 def get_automation_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> AutomationRuleDetailSchema:
     """
     Get a single automation rule with recent execution logs.
@@ -530,7 +530,7 @@ def update_automation_rule(
     rule_id: int,
     rule_data: AutomationRuleUpdateSchema,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> AutomationRule:
     """
     Update an automation rule.
@@ -583,7 +583,7 @@ def toggle_automation_rule(
     rule_id: int,
     toggle_data: ToggleRuleSchema,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> AutomationRule:
     """
     Enable or disable an automation rule.
@@ -616,7 +616,7 @@ def toggle_automation_rule(
 def delete_automation_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> None:
     """
     Delete an automation rule.
@@ -654,7 +654,7 @@ def delete_automation_rule(
 def run_automation_rule_now(
     rule_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> Dict[str, Any]:
     """
     Manually trigger an automation rule immediately.
@@ -727,7 +727,7 @@ def get_automation_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> List[AutomationLog]:
     """
     Get automation execution logs for the organization.
@@ -835,7 +835,7 @@ def get_automation_templates() -> List[AutomationTemplateSchema]:
 def preview_automation(
     rule_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(tenant_session)
 ) -> PreviewAutomationSchema:
     """
     Preview what an automation rule would send without actually executing it.

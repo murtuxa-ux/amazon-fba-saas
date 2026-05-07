@@ -15,7 +15,7 @@ from enum import Enum as PyEnum
 import json
 
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 
 
 # ============================================================================
@@ -291,7 +291,7 @@ router = APIRouter(prefix="/products-pipeline", tags=["products-pipeline"])
 def create_product(
     payload: PipelineProductCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Create a new product in pipeline (defaults to 'hunted' status)"""
     org_id = current_user.org_id
@@ -344,7 +344,7 @@ def list_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """List products with filters and pagination"""
     org_id = current_user.org_id
@@ -385,7 +385,7 @@ def list_products(
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Get single product with full details and status history"""
     org_id = current_user.org_id
@@ -406,7 +406,7 @@ def update_product(
     product_id: int,
     payload: PipelineProductUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Update product fields"""
     org_id = current_user.org_id
@@ -437,7 +437,7 @@ def change_product_status(
     product_id: int,
     payload: StatusChangeRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Change product status and create audit log entry"""
     org_id = current_user.org_id
@@ -483,7 +483,7 @@ def change_product_status(
 def delete_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Delete a product and its status logs"""
     org_id = current_user.org_id
@@ -505,7 +505,7 @@ def delete_product(
 @router.get("/stats/pipeline", response_model=PipelineStats)
 def get_pipeline_stats(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Get pipeline statistics and metrics"""
     org_id = current_user.org_id
@@ -566,7 +566,7 @@ def get_products_by_client(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Get all products for a specific client"""
     org_id = current_user.org_id
@@ -592,7 +592,7 @@ def get_products_by_client(
 def bulk_import_products(
     payload: BulkImportRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(tenant_session)
 ):
     """Import multiple products from CSV-like data"""
     org_id = current_user.org_id

@@ -12,7 +12,7 @@ import logging
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, tenant_session
 from models import User, Organization, Product, Client, WeeklyReport
 from database import get_db
 
@@ -106,7 +106,7 @@ def check_database_connection(db: Session) -> Dict[str, Any]:
 
 @router.get("/status")
 async def get_system_status(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -157,7 +157,7 @@ async def get_system_status(
 
 @router.get("/metrics")
 async def get_business_metrics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -209,7 +209,7 @@ async def get_business_metrics(
 
 @router.get("/logs")
 async def get_system_logs(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     limit: int = 100,
     level: Optional[str] = None,
@@ -255,7 +255,7 @@ async def health_check() -> Dict[str, Any]:
 
 @router.post("/logs/clear")
 async def clear_logs(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -276,7 +276,7 @@ async def clear_logs(
 
 @router.get("/diagnostics")
 async def get_diagnostics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """

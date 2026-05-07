@@ -7,9 +7,8 @@ or asin alone, without the org_id check — exactly the leak class that
 RLS exists to backstop. With this lint, application-level filtering
 stays correct even before any RLS test ever runs.
 
-Status in PR C-1: marked `@pytest.mark.skip` so it ships visibly but
-does not gate CI yet. PR C-2 removes the marker and adds a CI workflow
-that runs this on every push to main.
+Status in PR C-2: active and required as a CI gate via
+.github/workflows/tenant-isolation.yml.
 
 Allowlist:
     backend/tests/org_filter_allowlist.txt
@@ -38,8 +37,6 @@ from typing import Iterator, Set, Tuple
 
 import pytest
 
-
-SKIP_REASON = "RLS enforcement (and this lint as a CI gate) lands in PR C-2"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
@@ -218,7 +215,6 @@ def _load_allowlist() -> Set[Tuple[str, int]]:
     return allowed
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_canonical_query_sites_filter_by_org_id():
     """
     Every db.query(<CanonicalModel>).<...>.<terminator>() in backend/*.py

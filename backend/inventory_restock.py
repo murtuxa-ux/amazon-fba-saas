@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, relationship
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 import math
@@ -364,7 +364,7 @@ def list_inventory_items(
     client_id: int = Query(...),
     restock_status: Optional[str] = None,
     min_days_of_stock: Optional[int] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List inventory items with optional filters."""
@@ -395,7 +395,7 @@ def list_inventory_items(
 @router.post("/items", response_model=InventoryItemResponse)
 def create_inventory_item(
     item_data: InventoryItemCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new inventory item."""
@@ -434,7 +434,7 @@ def create_inventory_item(
 @router.get("/items/{item_id}", response_model=InventoryItemResponse)
 def get_inventory_item(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get a specific inventory item."""
@@ -456,7 +456,7 @@ def get_inventory_item(
 def update_inventory_item(
     item_id: int,
     item_data: InventoryItemUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update an inventory item."""
@@ -487,7 +487,7 @@ def update_inventory_item(
 def calculate_restock_for_item(
     item_id: int,
     calc_request: RestockCalculationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Calculate restock metrics for an item."""
@@ -528,7 +528,7 @@ def calculate_restock_for_item(
 @router.post("/generate-alerts")
 def generate_alerts_endpoint(
     client_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Scan inventory and generate alerts."""
@@ -541,7 +541,7 @@ def list_alerts(
     client_id: int = Query(...),
     severity: Optional[str] = None,
     is_read: Optional[bool] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List restock alerts with optional filters."""
@@ -563,7 +563,7 @@ def list_alerts(
 @router.put("/alerts/{alert_id}/read")
 def mark_alert_read(
     alert_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Mark an alert as read."""
@@ -583,7 +583,7 @@ def mark_alert_read(
 @router.put("/alerts/{alert_id}/resolve")
 def resolve_alert(
     alert_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Resolve an alert."""
@@ -603,7 +603,7 @@ def resolve_alert(
 @router.get("/shipments", response_model=List[InboundShipmentResponse])
 def list_shipments(
     client_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List inbound shipments for a client."""
@@ -616,7 +616,7 @@ def list_shipments(
 @router.post("/shipments", response_model=InboundShipmentResponse)
 def create_shipment(
     shipment_data: InboundShipmentCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new inbound shipment."""
@@ -643,7 +643,7 @@ def create_shipment(
 @router.get("/shipments/{shipment_id}", response_model=InboundShipmentResponse)
 def get_shipment(
     shipment_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get a specific shipment."""
@@ -662,7 +662,7 @@ def get_shipment(
 def update_shipment(
     shipment_id: int,
     shipment_data: InboundShipmentUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a shipment."""
@@ -687,7 +687,7 @@ def update_shipment(
 @router.get("/storage-fees", response_model=List[StorageFeeProjectionResponse])
 def list_storage_fees(
     client_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List storage fee projections for a client."""
@@ -700,7 +700,7 @@ def list_storage_fees(
 @router.post("/storage-fees/calculate")
 def calculate_storage_fees(
     client_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Calculate storage fees for all items of a client."""
@@ -763,7 +763,7 @@ def calculate_storage_fees(
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard_summary(
     client_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get inventory dashboard summary."""

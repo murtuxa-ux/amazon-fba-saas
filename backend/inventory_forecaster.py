@@ -11,7 +11,7 @@ from sqlalchemy import func
 from config import settings
 from database import get_db
 from models import User, ScoutResult
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/inventory", tags=["Inventory Forecasting"])
 
@@ -54,7 +54,7 @@ def forecast_demand(
 
 @router.get("/forecast")
 async def forecast_inventory_demand(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     category: Optional[str] = Query(None),
     growth_assumption: float = Query(0.05, ge=0, le=0.5)
@@ -119,7 +119,7 @@ async def forecast_inventory_demand(
 
 @router.get("/reorder")
 async def suggest_reorder_quantities(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     lead_time_days: int = Query(30, ge=7, le=90),
     safety_stock_weeks: int = Query(2, ge=1, le=8)
@@ -186,7 +186,7 @@ async def suggest_reorder_quantities(
 
 @router.get("/seasonal")
 async def identify_seasonal_patterns(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     category: Optional[str] = Query(None),
     min_samples: int = Query(5, ge=2, le=20)

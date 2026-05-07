@@ -107,10 +107,15 @@ def get_current_user(
 
 
 def require_role(minimum_role: str):
-    """Dependency factory: ensures user has at least the specified role level"""
+    """Dependency factory: ensures user has at least the specified role level.
+
+    Uses tenant_session (defined below) so role-gated routes also prime
+    `app.current_org_id` when settings.RLS_ENFORCED is true. When the flag
+    is false, tenant_session is a passthrough — no behavior change.
+    """
     min_level = ROLE_HIERARCHY.get(minimum_role, 0)
 
-    def checker(user: User = Depends(get_current_user)):
+    def checker(user: User = Depends(tenant_session)):
         user_level = ROLE_HIERARCHY.get(user.role, 0)
         if user_level < min_level:
             raise HTTPException(

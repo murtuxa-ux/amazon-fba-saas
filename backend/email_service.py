@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
 from config import settings
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db
 from models import User
 
@@ -482,7 +482,7 @@ router = APIRouter(prefix="/email", tags=["email"])
 @router.post("/send")
 async def send_email_endpoint(
     email_request: EmailRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db=Depends(get_db)
 ):
     """
@@ -539,7 +539,7 @@ async def send_email_endpoint(
 
 @router.post("/test")
 async def send_test_email(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db=Depends(get_db)
 ):
     """
@@ -573,7 +573,7 @@ async def send_test_email(
 
 @router.get("/templates")
 async def list_templates(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db=Depends(get_db)
 ):
     """

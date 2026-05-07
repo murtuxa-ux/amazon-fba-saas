@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from config import settings
 from database import get_db
 from models import Product, ScoutResult, User, Organization
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/risk", tags=["risk-analysis"])
 
@@ -126,7 +126,7 @@ def determine_risk_level(score: float) -> str:
 
 @router.get("/portfolio", response_model=PortfolioRisk)
 async def get_portfolio_risk(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -172,7 +172,7 @@ async def get_portfolio_risk(
 @router.get("/asin/{asin}", response_model=RiskBreakdown)
 async def get_asin_risk(
     asin: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -207,7 +207,7 @@ async def get_asin_risk(
 
 @router.get("/alerts", response_model=List[RiskAlert])
 async def get_risk_alerts(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """

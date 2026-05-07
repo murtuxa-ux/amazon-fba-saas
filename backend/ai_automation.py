@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import re
 import json
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -452,7 +452,7 @@ def parse_natural_language_query(query_text: str) -> dict:
 @router.post("/optimize-listing", response_model=ListingOptimizationResponse)
 async def submit_listing_optimization(
     request: ListingOptimizationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Submit ASIN for listing optimization"""
@@ -487,7 +487,7 @@ async def submit_listing_optimization(
 async def list_listing_optimizations(
     client_id: int | None = Query(None),
     status: str | None = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List listing optimizations with optional filters"""
@@ -507,7 +507,7 @@ async def list_listing_optimizations(
 @router.get("/listing-optimizations/{opt_id}", response_model=ListingOptimizationResponse)
 async def get_listing_optimization(
     opt_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get specific listing optimization"""
@@ -527,7 +527,7 @@ async def get_listing_optimization(
 async def update_listing_optimization(
     opt_id: int,
     status: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update listing optimization status (e.g., mark as applied)"""
@@ -551,7 +551,7 @@ async def update_listing_optimization(
 @router.get("/competitor-watch", response_model=list[CompetitorWatchResponse])
 async def list_competitor_watches(
     client_id: int | None = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List competitor watches"""
@@ -570,7 +570,7 @@ async def list_competitor_watches(
 @router.post("/competitor-watch", response_model=CompetitorWatchResponse)
 async def create_competitor_watch(
     request: CompetitorWatchRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create new competitor watch entry"""
@@ -597,7 +597,7 @@ async def create_competitor_watch(
 
 @router.get("/competitor-watch/alerts")
 async def get_competitor_alerts(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get active competitor alerts"""
@@ -619,7 +619,7 @@ async def update_competitor_watch(
     watch_id: int,
     competitor_price: float | None = None,
     is_active: bool | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update competitor watch entry"""
@@ -653,7 +653,7 @@ async def list_ai_insights(
     insight_type: str | None = Query(None),
     impact_level: str | None = Query(None),
     unread_only: bool = Query(False),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List AI insights with optional filters"""
@@ -677,7 +677,7 @@ async def list_ai_insights(
 @router.post("/insights/generate")
 async def generate_insights(
     client_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Generate AI insights for a specific client"""
@@ -701,7 +701,7 @@ async def generate_insights(
 @router.put("/insights/{insight_id}/read")
 async def mark_insight_read(
     insight_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Mark insight as read"""
@@ -724,7 +724,7 @@ async def mark_insight_read(
 @router.put("/insights/{insight_id}/act")
 async def mark_insight_acted(
     insight_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Mark insight as acted upon"""
@@ -746,7 +746,7 @@ async def mark_insight_acted(
 
 @router.get("/automation-rules", response_model=list[AutomationRuleResponse])
 async def list_automation_rules(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List automation rules"""
@@ -759,7 +759,7 @@ async def list_automation_rules(
 @router.post("/automation-rules", response_model=AutomationRuleResponse)
 async def create_automation_rule(
     request: AutomationRuleRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create new automation rule"""
@@ -785,7 +785,7 @@ async def create_automation_rule(
 async def update_automation_rule(
     rule_id: int,
     request: AutomationRuleRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update automation rule"""
@@ -814,7 +814,7 @@ async def update_automation_rule(
 @router.post("/automation-rules/{rule_id}/trigger")
 async def manually_trigger_rule(
     rule_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Manually trigger an automation rule"""
@@ -843,7 +843,7 @@ async def manually_trigger_rule(
 @router.post("/query")
 async def natural_language_query(
     request: NLQueryRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Process natural language query and return results"""
@@ -889,7 +889,7 @@ async def natural_language_query(
 @router.get("/dashboard")
 async def get_ai_dashboard(
     client_id: int | None = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get AI tools dashboard statistics"""

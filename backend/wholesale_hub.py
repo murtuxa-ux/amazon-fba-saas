@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from enum import Enum
 import math
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -480,7 +480,7 @@ def list_products(
     min_score: Optional[float] = Query(None),
     client_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List wholesale products with optional filters"""
     query = db.query(WholesaleProduct).filter(WholesaleProduct.org_id == current_user.org_id)
@@ -500,7 +500,7 @@ def list_products(
 def create_product(
     product: WholesaleProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Create a new wholesale product"""
     profit_calc = calculate_profitability(
@@ -555,7 +555,7 @@ def create_product(
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get a specific wholesale product"""
     product = db.query(WholesaleProduct).filter(
@@ -572,7 +572,7 @@ def update_product(
     product_id: int,
     product_update: WholesaleProductUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Update a wholesale product"""
     db_product = db.query(WholesaleProduct).filter(
@@ -597,7 +597,7 @@ def update_product(
 def score_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Calculate deal score for a product"""
     product = db.query(WholesaleProduct).filter(
@@ -650,7 +650,7 @@ def calculate_profit(req: ProfitCalcRequest):
 @router.get("/suppliers", response_model=List[WholesaleSupplierResponse])
 def list_suppliers(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List all suppliers"""
     return db.query(WholesaleSupplier).filter(
@@ -662,7 +662,7 @@ def list_suppliers(
 def create_supplier(
     supplier: WholesaleSupplierCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Create a new supplier"""
     db_supplier = WholesaleSupplier(
@@ -678,7 +678,7 @@ def create_supplier(
 def get_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get a specific supplier"""
     supplier = db.query(WholesaleSupplier).filter(
@@ -695,7 +695,7 @@ def update_supplier(
     supplier_id: int,
     supplier_update: WholesaleSupplierUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Update a supplier"""
     db_supplier = db.query(WholesaleSupplier).filter(
@@ -725,7 +725,7 @@ def list_purchase_orders(
     supplier_id: Optional[int] = Query(None),
     client_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List purchase orders with optional filters"""
     query = db.query(WholesalePurchaseOrder).filter(WholesalePurchaseOrder.org_id == current_user.org_id)
@@ -743,7 +743,7 @@ def list_purchase_orders(
 def create_purchase_order(
     po: PurchaseOrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Create a new purchase order"""
     db_po = WholesalePurchaseOrder(
@@ -782,7 +782,7 @@ def create_purchase_order(
 def get_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get a specific purchase order"""
     po = db.query(WholesalePurchaseOrder).filter(
@@ -799,7 +799,7 @@ def update_purchase_order(
     po_id: int,
     po_update: PurchaseOrderUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Update a purchase order"""
     db_po = db.query(WholesalePurchaseOrder).filter(
@@ -823,7 +823,7 @@ def update_purchase_order(
 def submit_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Submit a draft purchase order"""
     db_po = db.query(WholesalePurchaseOrder).filter(
@@ -851,7 +851,7 @@ def submit_purchase_order(
 @router.get("/dashboard")
 def get_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get wholesale operations dashboard summary"""
     base_query = db.query(WholesaleProduct).filter(WholesaleProduct.org_id == current_user.org_id)

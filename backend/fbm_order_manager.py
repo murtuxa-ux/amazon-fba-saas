@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text, and_, or_
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User, Organization, FBMOrder, FBMOrderItem
 from database import get_db
 
@@ -326,7 +326,7 @@ def _compute_performance_status(
 
 @router.get("/", response_model=List[FBMOrderResponse])
 async def list_fbm_orders(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     status_filter: Optional[OrderStatus] = Query(None),
     priority_filter: Optional[Priority] = Query(None),
@@ -390,7 +390,7 @@ async def list_fbm_orders(
 @router.post("/", response_model=FBMOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_fbm_order(
     request: CreateFBMOrderRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -503,7 +503,7 @@ async def create_fbm_order(
 @router.get("/{order_id}", response_model=FBMOrderResponse)
 async def get_fbm_order(
     order_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get complete details for a specific FBM order including all items and tracking."""
@@ -533,7 +533,7 @@ async def get_fbm_order(
 async def update_fbm_order(
     order_id: int,
     request: UpdateFBMOrderRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Update order status, tracking, or notes."""
@@ -581,7 +581,7 @@ async def update_fbm_order(
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_fbm_order(
     order_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Cancel an FBM order. Can only cancel pending/processing orders."""
@@ -621,7 +621,7 @@ async def delete_fbm_order(
 async def ship_fbm_order(
     order_id: int,
     request: ShippingInfoRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Mark order as shipped with carrier and tracking information."""
@@ -673,7 +673,7 @@ async def ship_fbm_order(
 async def deliver_fbm_order(
     order_id: int,
     request: DeliveryConfirmationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Mark order as delivered."""
@@ -722,7 +722,7 @@ async def deliver_fbm_order(
 async def process_fbm_return(
     order_id: int,
     request: ReturnProcessRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Process a return for a delivered order."""
@@ -773,7 +773,7 @@ async def process_fbm_return(
 
 @router.get("/dashboard/metrics", response_model=DashboardMetrics)
 async def get_fbm_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     period_days: int = Query(30, ge=1, le=365),
 ):
@@ -913,7 +913,7 @@ async def get_fbm_dashboard(
 
 @router.get("/metrics/performance", response_model=PerformanceMetrics)
 async def get_performance_metrics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     period_days: int = Query(30, ge=1, le=365),
 ):
@@ -1039,7 +1039,7 @@ async def get_performance_metrics(
 
 @router.get("/pending", response_model=List[PendingOrderResponse])
 async def get_pending_orders(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     include_overdue: bool = Query(True),
 ):
@@ -1091,7 +1091,7 @@ async def get_pending_orders(
 @router.post("/bulk-ship", status_code=status.HTTP_200_OK)
 async def bulk_ship_orders(
     request: BulkShippingRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -1173,7 +1173,7 @@ async def bulk_ship_orders(
 
 @router.get("/returns", response_model=List[ReturnRecord])
 async def list_returns(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
@@ -1213,7 +1213,7 @@ async def list_returns(
 @router.get("/shipping-labels/{order_id}", response_model=ShippingLabel)
 async def get_shipping_label(
     order_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """

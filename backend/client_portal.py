@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List, Optional
 import enum
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -363,7 +363,7 @@ def create_onboarding_checklist(client_id: int, db: Session):
 @router.post("/profiles", response_model=ClientProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_client_profile(
     profile: ClientProfileCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new client profile"""
@@ -402,7 +402,7 @@ async def create_client_profile(
 
 @router.get("/profiles", response_model=List[ClientProfileResponse])
 async def list_client_profiles(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
@@ -418,7 +418,7 @@ async def list_client_profiles(
 @router.get("/profiles/{profile_id}", response_model=ClientProfileResponse)
 async def get_client_profile(
     profile_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get a specific client profile"""
@@ -437,7 +437,7 @@ async def get_client_profile(
 async def update_client_profile(
     profile_id: int,
     profile_update: ClientProfileUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a client profile"""
@@ -468,7 +468,7 @@ async def update_client_profile(
 @router.get("/profiles/{profile_id}/onboarding", response_model=OnboardingChecklistResponse)
 async def get_onboarding_checklist(
     profile_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get onboarding checklist for a client"""
@@ -498,7 +498,7 @@ async def get_onboarding_checklist(
 async def mark_onboarding_step_complete(
     profile_id: int,
     step_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Mark an onboarding step as complete"""
@@ -546,7 +546,7 @@ async def mark_onboarding_step_complete(
 @router.post("/profiles/{profile_id}/onboarding/reset")
 async def reset_onboarding(
     profile_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Reset onboarding for a client"""
@@ -583,7 +583,7 @@ async def reset_onboarding(
 @router.get("/profiles/{profile_id}/notes", response_model=List[ClientNoteResponse])
 async def get_client_notes(
     profile_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
@@ -612,7 +612,7 @@ async def get_client_notes(
 async def create_client_note(
     profile_id: int,
     note: ClientNoteCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new note for a client"""
@@ -642,7 +642,7 @@ async def create_client_note(
 
 @router.get("/my-dashboard", response_model=ClientProfileResponse)
 async def get_my_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get dashboard for the current client user"""
@@ -658,7 +658,7 @@ async def get_my_dashboard(
 
 @router.get("/overview", response_model=ClientOverviewResponse)
 async def get_overview(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get overview of all clients and onboarding progress"""

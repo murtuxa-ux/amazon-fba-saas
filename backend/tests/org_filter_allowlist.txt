@@ -6,12 +6,91 @@
 # Entries without a `# reason:` comment fail the lint test outright,
 # forcing every exception to be documented at the point it's allowed.
 #
-# This file is intentionally empty in PR C-1 — no allowlisted bypasses
-# yet. Real entries land alongside PR C-2's route sweep, when the lint
-# is enabled in CI and any pre-existing unscoped queries surface.
+# This file documents 30 db.query(<canonical>) call sites that the AST
+# lint can't statically prove are tenant-scoped. They split into two
+# categories:
 #
-# Examples (placeholder; remove when adding real entries):
+#   (a) Pre-auth / cross-org-by-design User lookups: login, signup,
+#       password reset, get_current_user, JWT-decoded WS handshake.
+#       These intentionally have no app.current_org_id set yet — the
+#       org context is being established BY this query (login) or
+#       follows from globally-unique constraints (User.username/email
+#       are UNIQUE; User.id from a signed JWT is authoritative).
 #
-#   backend/auth.py:102                    # reason: get_current_user — query is by users.id, not org-scoped, called pre-auth-context
-#   backend/stripe_billing.py:158          # reason: webhook lookup by stripe_customer_id — org_id derived afterward
-#   backend/some_admin_route.py:42         # reason: support-mode escalation, gated to owner role only
+#   (b) Builder-pattern false positives: the lint walks a single
+#       statement's call chain. When code uses
+#         q = db.query(M).filter(M.org_id == ...)
+#         q = q.filter(...)
+#         return q.all()
+#       the .all() is on the variable, not on the original query
+#       expression, so the lint can't follow the filter back to the
+#       query. Per-site verification confirmed the org_id filter does
+#       exist in the actual code path.
+#
+# Cleaning up category (b) would be straightforward (rewrite as a
+# single expression chain, or invert the lint to be flow-aware) but
+# is explicitly out of scope for PR C-2 — the multi-tenancy foundation
+# ships first; query-style cleanups are a P1 follow-up.
+#
+# Tracked as P1 GitHub issue: "Query lint flow analysis + cleanup
+# of pre-auth User queries" (opened alongside PR C-2).
+
+# ── Pre-auth / authentication-flow User lookups ────────────────────────────
+# These run BEFORE Depends(tenant_session), so app.current_org_id is not
+# set, RLS would block them, and they intentionally bypass: they're
+# discovering or validating the very identity that tenant_session keys on.
+# In all cases the query keys on User.username, User.email, or User.id
+# (all UNIQUE constraints) — a leak across orgs is not possible given
+# those uniqueness invariants in the table schema.
+
+backend/auth.py:103       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
+backend/main.py:342       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
+backend/main.py:344       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as :342
+backend/main.py:375       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
+backend/main.py:377       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
+backend/main.py:433       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
+backend/main.py:489       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
+backend/main.py:539       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
+backend/main.py:153       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
+backend/ppc_action_plan.py:962  # reason: custom JWT decode route — fetches User by uid from token before any tenant_session priming, identical to get_current_user pattern
+backend/websocket_manager.py:221  # reason: WS handshake — fetches User by id from JWT subprotocol token before connection is admitted; runs in WS lifecycle pre-tenant_session, mirrors get_current_user
+
+# ── Manager / team-member lookups inside an already-scoped iteration ──────
+# These are User-by-id lookups inside a loop over rows that were ALREADY
+# tenant-scoped via the parent query. The user_id values come from rows
+# the caller is permitted to see, and User itself has org_id, so once
+# RLS_ENFORCED=true is flipped the lookup is scoped at the database level
+# (User RLS denies cross-org rows). The lint can't see this because the
+# org boundary is established two statements above.
+
+backend/dwm_reporting.py:291  # reason: User lookup by id inside loop over org-scoped DWMDailyLogs; user_id sourced from rows the caller is already permitted to see; User RLS catches any cross-org leak post-flip
+backend/dwm_reporting.py:426  # reason: User lookup by id inside loop over org-scoped DWMApprovals; same pattern as :291
+backend/dwm_reporting.py:510  # reason: User lookup by id inside weekly-summary loop; uid keys come from prior org-scoped DWMDailyLogs aggregation
+backend/dwm_reporting.py:619  # reason: User lookup by id inside monthly-summary loop; uid keys come from prior org-scoped DWMDailyLogs aggregation
+backend/dwm_reporting.py:766  # reason: User lookup by id inside team-breakdown loop; uid keys come from prior org-scoped DWMApprovals aggregation
+backend/dwm_reporting.py:864  # reason: User lookup by id inside leaderboard loop; uid keys come from prior org-scoped DWMApprovals aggregation
+backend/multi_user_access.py:243  # reason: verify_email_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed because filter is on the *variable* not the original chain)
+backend/multi_user_access.py:255  # reason: verify_username_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed for the same chain-tracking reason)
+
+# ── Builder-pattern false positives ─────────────────────────────────────────
+# Code shape:
+#     query = db.query(M).filter(M.org_id == current_user.org_id, ...)
+#     if x: query = query.filter(...)
+#     return query.all()
+# The .all() is on the variable, so the lint can't trace it back to the
+# .filter() with the org_id check. Verified by hand that the org_id
+# filter exists in the actual statement (line numbers below point at
+# the db.query call; the .filter(M.org_id == ...) is the very next
+# expression on the same statement).
+
+backend/ai_buybox.py:386                     # reason: q = db.query(BuyBoxAlert).filter(BuyBoxAlert.org_id == current_user.org_id, ...) — org_id filter on the same statement; lint can't follow when subsequent .filter() chain hangs off `q`
+backend/account_health_monitor.py:449        # reason: query = db.query(AccountViolation).filter(AccountViolation.org_id == current_user.org_id) — org_id filter on the same statement
+backend/brand_approval_tracker.py:300        # reason: query = db.query(BrandApproval).filter(BrandApproval.org_id == get_user_org_scope(current_user)) — org_id filter via helper on the same statement
+backend/fba_shipment_planner.py:301          # reason: query = db.query(FBAShipment).filter(FBAShipment.org_id == current_user.org_id) — org_id filter on the same statement
+backend/fbm_order_manager.py:350             # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id) — org_id filter on the same statement
+backend/fbm_order_manager.py:797             # reason: base_query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.created_at >= period_start) — org_id filter on the same statement
+backend/fbm_order_manager.py:1055            # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id, FBMOrder.status.in_(...)) — org_id filter on the same statement
+backend/ppc_advanced.py:359                  # reason: query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id, PPCCampaign.client_id == client_id) — org_id filter on the same statement
+backend/ppc_advanced.py:586                  # reason: campaign lookup by id where the parent PPCBudgetPacing.id was already org-scoped two statements above; child cross-FK lookup, RLS catches via Tier D EXISTS policy on PPCCampaign post-flip
+backend/ppc_manager.py:466                   # reason: query = db.query(PPCCampaign).filter(PPCCampaign.org_id == current_user.org_id) — org_id filter on the same statement
+backend/wholesale_profit_calculator.py:799   # reason: query = db.query(ProfitAnalysis).filter(ProfitAnalysis.org_id == current_user.org_id) — org_id filter on the same statement

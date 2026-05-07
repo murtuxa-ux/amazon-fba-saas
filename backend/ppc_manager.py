@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, tenant_session
 from database import get_db
 from models import User, Organization, PPCCampaign, PPCKeyword, PPCAdGroup
 
@@ -443,7 +443,7 @@ def get_mock_keyword_harvesting() -> List[KeywordHarvestSchema]:
 @router.get("/campaigns", response_model=List[CampaignListSchema])
 def list_campaigns(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     status: Optional[str] = Query(None, pattern="^(active|paused|archived)$"),
     campaign_type: Optional[str] = Query(None, pattern="^(SP|SB|SD)$"),
     skip: int = Query(0, ge=0),
@@ -481,7 +481,7 @@ def list_campaigns(
 def create_campaign(
     payload: CampaignCreateSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> CampaignDetailSchema:
     """
     Create a new PPC campaign.
@@ -536,7 +536,7 @@ def create_campaign(
 def get_campaign(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> CampaignDetailSchema:
     """
     Get detailed information about a specific campaign including keywords and ad groups.
@@ -573,7 +573,7 @@ def update_campaign(
     campaign_id: int,
     payload: CampaignUpdateSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> CampaignDetailSchema:
     """
     Update campaign settings (budget, status, name, end date).
@@ -637,7 +637,7 @@ def update_campaign(
 def delete_campaign(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> None:
     """
     Soft delete a campaign by archiving it.
@@ -682,7 +682,7 @@ def add_keyword(
     campaign_id: int,
     payload: KeywordCreateSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> KeywordSchema:
     """
     Add a keyword to a campaign.
@@ -742,7 +742,7 @@ def add_keyword(
 @router.get("/metrics", response_model=MetricsSchema)
 def get_overall_metrics(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     days: int = Query(30, ge=1, le=365),
 ) -> MetricsSchema:
     """
@@ -806,7 +806,7 @@ def get_overall_metrics(
 def get_campaign_metrics(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     days: int = Query(30, ge=1, le=365),
 ) -> List[TimeSeriesMetricSchema]:
     """
@@ -883,7 +883,7 @@ def get_campaign_metrics(
 def optimize_campaign_bids(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     acos_target: float = Query(0.25, ge=0.01, le=1.0),
 ) -> List[BidOptimizationSchema]:
     """
@@ -949,7 +949,7 @@ def optimize_campaign_bids(
 @router.get("/keywords/harvest", response_model=List[KeywordHarvestSchema])
 def harvest_keywords(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ) -> List[KeywordHarvestSchema]:
     """
     Get keyword harvesting suggestions based on search term reports and historical performance.

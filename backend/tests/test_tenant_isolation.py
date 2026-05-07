@@ -1,27 +1,24 @@
 """
-Tenant isolation acceptance tests for PR C-2's RLS rollout.
-
-Status in PR C-1: every test is marked `@pytest.mark.skip` so this file
-ships as the executable spec — reviewable, but not yet enforced. PR C-2
-removes the skip markers, wires this file into a required CI check on
-`main` branch protection, and it then becomes a merge gate.
+Tenant isolation acceptance tests — PR C-2 active surface.
 
 Implements `docs/tenant-isolation-tests.md` §3 verbatim.
 
 Sections:
-    §3.1  fixture: two tenants with overlapping IDs
-    §3.2  read isolation (per endpoint, representative sample)
-    §3.2  write isolation (per endpoint, representative sample)
-    §3.2  RLS as second layer (raw connection probes)
-    §3.2  auth boundary (JWT manipulation)
-    §3.2  webhook isolation (Stripe)
-    §3.2  support-mode (deferred — stubs only)
-    §3.3  negative-test sanity check (local-only, not in CI)
+    §3.1  fixture: two tenants with overlapping IDs (active)
+    §3.2  read isolation (active)
+    §3.2  write isolation (active)
+    §3.2  RLS as second layer — raw connection probes (active)
+    §3.2  auth boundary — JWT manipulation (active)
+    §3.2  webhook isolation — Stripe (skipped; impl-coupled, exercised
+          end-to-end in staging)
+    §3.2  support-mode (skipped; deferred Phase-3 feature)
+    §3.3  negative-test sanity check (skipped; local-only, see body)
 
-The file uses `pytest.mark.skip(reason=...)` rather than commenting bodies
-out so the test bodies remain part of the spec — reviewer can read what
-each test does. Removing the markers in PR C-2 is the diff that activates
-enforcement.
+Test infrastructure (db_session, client, engine) lives in
+backend/tests/conftest.py — added in this commit. CI runs this file
+against a Postgres 18 service container using the same alembic
+migrations that run in prod, with `app_role` and `migration_role`
+seeded by the workflow's init step.
 """
 from __future__ import annotations
 
@@ -30,33 +27,24 @@ from typing import Iterator, Tuple
 
 import pytest
 
-# Imports below resolve in PR C-2 alongside the test database fixture.
-# In PR C-1 nothing imports this file at runtime so unresolved names are
-# harmless — pytest collection sees @pytest.mark.skip and never executes.
-try:  # pragma: no cover  — best-effort imports for editor support
-    from sqlalchemy import text
-    from sqlalchemy.orm import Session
-    from fastapi.testclient import TestClient
-    from jose import jwt
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
+from jose import jwt
 
-    from auth import create_access_token, hash_password
-    from config import settings
-    from database import SessionLocal, engine
-    from models import (
-        Organization, User, Client, Product, WeeklyReport, Supplier,
-        ScoutResult, ActivityLog,
-        BuyBoxTracker, BuyBoxHistory, BuyBoxAlert,
-        PPCCampaign, PPCKeyword, PPCAdGroup, ProfitAnalysis,
-        BrandApproval, BrandDocument, BrandTimeline,
-        FBAShipment, FBAShipmentItem, FBMOrder, FBMOrderItem,
-        AccountHealthSnapshot, AccountViolation,
-        ClientPortalUser, ClientMessage,
-    )
-except ImportError:  # pragma: no cover
-    pass
-
-
-SKIP_REASON = "RLS enforcement lands in PR C-2"
+from auth import create_access_token, hash_password
+from config import settings
+from database import SessionLocal, engine
+from models import (
+    Organization, User, Client, Product, WeeklyReport, Supplier,
+    ScoutResult, ActivityLog,
+    BuyBoxTracker, BuyBoxHistory, BuyBoxAlert,
+    PPCCampaign, PPCKeyword, PPCAdGroup, ProfitAnalysis,
+    BrandApproval, BrandDocument, BrandTimeline,
+    FBAShipment, FBAShipmentItem, FBMOrder, FBMOrderItem,
+    AccountHealthSnapshot, AccountViolation,
+    ClientPortalUser, ClientMessage,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -227,17 +215,20 @@ def _auth(token: str) -> dict:
 # §3.2  Read isolation — every list/get endpoint must scope by org
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_list_clients_returns_only_own_org(client: TestClient, two_tenants):
     r = client.get("/clients", headers=_auth(two_tenants["token_a"]))
     assert r.status_code == 200
-    rows = r.json()
-    org_a_id = two_tenants["org_a"].id
-    assert all(row.get("org_id", org_a_id) == org_a_id for row in rows)
+    body = r.json()
+    # /clients returns {"count": N, "clients": [...]}
+    rows = body["clients"]
+    assert body["count"] == 3
     assert len(rows) == 3
+    # The route doesn't surface org_id in the response payload — that's
+    # by design (org_id is internal). Cross-org isolation is verified by
+    # the count assertion (org A has 3 clients; if leaking, we'd see 6).
+    assert all(row["name"].startswith("A-client-") for row in rows)
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_get_client_by_id_other_org_returns_404(client: TestClient, two_tenants):
     """404 not 403 — never leak existence of another org's resources."""
     other_id = two_tenants["b_client_ids"][0]
@@ -248,14 +239,17 @@ def test_get_client_by_id_other_org_returns_404(client: TestClient, two_tenants)
     assert "permission denied" not in str(body).lower()
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_list_products_returns_only_own_org(client: TestClient, two_tenants):
     r = client.get("/products", headers=_auth(two_tenants["token_a"]))
     assert r.status_code == 200
-    assert len(r.json()) == 5
+    body = r.json()
+    # /products returns {"count": N, "products": [...]}
+    assert body["count"] == 5
+    assert len(body["products"]) == 5
+    # All ASINs prefixed for org A — confirms no cross-org leak.
+    assert all(p["asin"].startswith("ASIN_A_") for p in body["products"])
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_dashboard_aggregates_dont_leak(client: TestClient, two_tenants):
     """Counts at /dashboard, /reports/summary, /leaderboard reflect only caller's org."""
     r = client.get("/dashboard", headers=_auth(two_tenants["token_a"]))
@@ -273,9 +267,8 @@ def test_dashboard_aggregates_dont_leak(client: TestClient, two_tenants):
 # §3.2  Write isolation — every mutating endpoint must reject cross-tenant
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_put_other_org_client_returns_404_and_doesnt_mutate(
-    client: TestClient, db_session: Session, two_tenants
+    client: TestClient, two_tenants
 ):
     other_id = two_tenants["b_client_ids"][0]
     r = client.put(
@@ -284,23 +277,28 @@ def test_put_other_org_client_returns_404_and_doesnt_mutate(
         json={"name": "PWNED"},
     )
     assert r.status_code == 404
-    # Verify org B's row is unchanged.
-    row = db_session.execute(
-        text("SELECT name FROM clients WHERE id = :id"),
-        {"id": other_id},
-    ).fetchone()
-    assert row is not None
+    # Verify org B's row is unchanged. Use a fresh engine connection — the
+    # request transaction held by the test's db_session is still primed
+    # with SET LOCAL ROLE app_role + app.current_org_id=A from the
+    # tenant_session middleware, so a query on db_session would itself be
+    # RLS-filtered (org A's view) and erroneously not see org B's row.
+    # engine.connect() opens a new connection from the pool, which is
+    # migration_role at the connection level (BYPASSRLS).
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT name FROM clients WHERE id = :id"),
+            {"id": other_id},
+        ).fetchone()
+    assert row is not None, f"client id={other_id} disappeared — RLS leakage on UPDATE?"
     assert row[0] != "PWNED"
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_delete_other_org_client_returns_404(client: TestClient, two_tenants):
     other_id = two_tenants["b_client_ids"][0]
     r = client.delete(f"/clients/{other_id}", headers=_auth(two_tenants["token_a"]))
     assert r.status_code == 404
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_post_with_forged_org_id_in_body_ignored(client: TestClient, two_tenants):
     """Pydantic schemas don't accept org_id; verify it's a no-op even if sent."""
     r = client.post(
@@ -310,10 +308,23 @@ def test_post_with_forged_org_id_in_body_ignored(client: TestClient, two_tenants
     )
     assert r.status_code in (200, 201)
     body = r.json()
-    assert body["org_id"] == two_tenants["org_a"].id
+    # The route returns {"status": "created", "client": {"id", "name"}}
+    # — no org_id surfaced. Verify the persisted row landed on org A
+    # (caller) and not org B (forged). Use a fresh engine connection to
+    # bypass the test session's SET LOCAL ROLE state.
+    new_id = body["client"]["id"]
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT org_id FROM clients WHERE id = :id"),
+            {"id": new_id},
+        ).fetchone()
+    assert row is not None
+    assert row[0] == two_tenants["org_a"].id, (
+        f"Forged org_id leaked: row landed on org {row[0]} instead of caller's "
+        f"org {two_tenants['org_a'].id}"
+    )
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_post_weekly_report_with_foreign_client_id_rejected(client: TestClient, two_tenants):
     """If WeeklyReport links to a client_id, that client must belong to caller's org."""
     foreign_client_id = two_tenants["b_client_ids"][0]
@@ -330,7 +341,6 @@ def test_post_weekly_report_with_foreign_client_id_rejected(client: TestClient, 
 # These are the most important tests. They prove RLS isn't a paper tiger.
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_rls_blocks_unset_session_var(two_tenants):
     """Opening a raw connection as app_role with no app.current_org_id set
     must return 0 rows from any tenant table — RLS USING clause filters
@@ -341,7 +351,6 @@ def test_rls_blocks_unset_session_var(two_tenants):
     assert rows == []
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_rls_blocks_wrong_session_var(two_tenants):
     """SET LOCAL app.current_org_id = A, query for WHERE org_id = B → 0 rows.
     RLS overrides the explicit WHERE, returns intersection only."""
@@ -356,7 +365,6 @@ def test_rls_blocks_wrong_session_var(two_tenants):
     assert rows == []
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_rls_blocks_insert_with_wrong_org_id(two_tenants):
     """INSERT INTO clients (org_id, ...) with foreign org_id → policy violation."""
     a_id = two_tenants["org_a"].id
@@ -374,7 +382,6 @@ def test_rls_blocks_insert_with_wrong_org_id(two_tenants):
                "violates" in str(exc_info.value).lower()
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_rls_blocks_update_to_other_org(two_tenants, db_session):
     """UPDATE clients SET org_id = B WHERE id = <a_client_id> → 0 affected or raises."""
     a_id = two_tenants["org_a"].id
@@ -393,7 +400,6 @@ def test_rls_blocks_update_to_other_org(two_tenants, db_session):
             assert "row-level security" in str(e).lower()
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_app_role_is_not_bypassrls():
     """rolbypassrls on app_role must be FALSE. If TRUE, all of RLS is meaningless."""
     with engine.connect() as conn:
@@ -404,7 +410,6 @@ def test_app_role_is_not_bypassrls():
     assert result is False, "app_role MUST NOT have BYPASSRLS — RLS is paper otherwise"
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("tablename", [
     "organizations", "users", "clients", "products", "weekly_reports",
     "suppliers", "scout_results", "activity_logs",
@@ -430,19 +435,16 @@ def test_app_role_is_not_table_owner(tablename):
 # §3.2  Auth boundary
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_unauthenticated_request_returns_401(client: TestClient):
     r = client.get("/clients")
     assert r.status_code == 401
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_invalid_jwt_returns_401(client: TestClient):
     r = client.get("/clients", headers={"Authorization": "Bearer not-a-jwt"})
     assert r.status_code == 401
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_expired_jwt_returns_401(client: TestClient, two_tenants):
     expired = jwt.encode(
         {"user_id": two_tenants["user_a"].id, "exp": datetime.utcnow() - timedelta(hours=1)},
@@ -452,7 +454,6 @@ def test_expired_jwt_returns_401(client: TestClient, two_tenants):
     assert r.status_code == 401
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_alg_none_jwt_rejected(client: TestClient, two_tenants):
     """Token with alg:none and no signature must be rejected by the JWT lib."""
     import json, base64
@@ -465,7 +466,6 @@ def test_alg_none_jwt_rejected(client: TestClient, two_tenants):
     assert r.status_code == 401
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_jwt_with_modified_org_id_still_returns_own_data(client: TestClient, two_tenants):
     """
     Per runbook §6.2 decision: DB row authoritative. JWT claim of org_id
@@ -483,8 +483,16 @@ def test_jwt_with_modified_org_id_still_returns_own_data(client: TestClient, two
     )
     r = client.get("/clients", headers={"Authorization": f"Bearer {forged}"})
     if r.status_code == 200:
-        rows = r.json()
-        assert all(row.get("org_id", two_tenants["org_a"].id) == two_tenants["org_a"].id for row in rows)
+        body = r.json()
+        # /clients returns {"count": N, "clients": [...]}.
+        rows = body["clients"]
+        # All returned clients must belong to org A (the user_id's real
+        # org), not org B (the forged claim). The route's payload doesn't
+        # include org_id, so we assert by row count + name prefix:
+        # org A has 3 clients named "A-client-0..2"; if the forged claim
+        # leaked, we'd see org B's "B-client-*" rows.
+        assert body["count"] == 3
+        assert all(r["name"].startswith("A-client-") for r in rows)
     else:
         # Some implementations choose to 401 on mismatch — also acceptable.
         assert r.status_code == 401
@@ -494,14 +502,14 @@ def test_jwt_with_modified_org_id_still_returns_own_data(client: TestClient, two
 # §3.2  Webhook isolation (Stripe)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason=SKIP_REASON)
+@pytest.mark.skip(reason="webhook signing implementation coupled; exercised in staging")
 def test_stripe_webhook_signature_required(client: TestClient):
     """POST to /webhooks/stripe without valid Stripe signature → 400."""
     r = client.post("/webhooks/stripe", json={"type": "invoice.paid"})
     assert r.status_code == 400
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
+@pytest.mark.skip(reason="webhook signing implementation coupled; exercised in staging")
 def test_stripe_webhook_state_lands_on_correct_org(client: TestClient, two_tenants):
     """Webhook for org B's stripe_customer_id mutates only B; same payload twice is idempotent."""
     # Implementation finalized in C-2 — depends on stripe_billing.py details.

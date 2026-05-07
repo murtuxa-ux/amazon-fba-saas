@@ -10,7 +10,7 @@ from sqlalchemy import desc, func, and_
 from config import settings
 from database import get_db
 from models import WeeklyReport, Product, ScoutResult
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/reports", tags=["Report Generator"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/reports", tags=["Report Generator"])
 @router.get("/executive")
 async def get_executive_summary(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get executive summary report.
@@ -95,7 +95,7 @@ async def get_executive_summary(
 async def get_manager_report(
     manager_id: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(12, ge=1, le=52),
 ):
     """
@@ -170,7 +170,7 @@ async def get_manager_report(
 @router.get("/weekly-summary")
 async def get_weekly_summary(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     weeks: int = Query(4, ge=1, le=52),
 ):
     """

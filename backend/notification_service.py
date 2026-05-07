@@ -14,7 +14,7 @@ from uuid import uuid4
 from config import settings
 from database import get_db
 from models import Product, ScoutResult, User, Organization
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -56,7 +56,7 @@ class AlertCheckResponse(BaseModel):
 @router.post("/preferences", response_model=NotificationPreferences)
 async def set_notification_preferences(
     prefs: NotificationPreferences,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -70,7 +70,7 @@ async def set_notification_preferences(
 
 @router.get("/preferences", response_model=NotificationPreferences)
 async def get_notification_preferences(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -87,7 +87,7 @@ async def get_notification_preferences(
 async def list_notifications(
     limit: int = 50,
     unread_only: bool = False,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -106,7 +106,7 @@ async def list_notifications(
 
 @router.get("/check", response_model=AlertCheckResponse)
 async def check_for_alerts(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -233,7 +233,7 @@ async def check_for_alerts(
 @router.post("/acknowledge/{notification_id}")
 async def acknowledge_notification(
     notification_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """

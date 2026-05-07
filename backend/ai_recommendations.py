@@ -10,7 +10,7 @@ from sqlalchemy import desc, and_
 from config import settings
 from database import get_db
 from models import ScoutResult, Product
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/recommendations", tags=["AI Recommendations"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/recommendations", tags=["AI Recommendations"])
 @router.get("/")
 async def get_recommendations(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(20, ge=1, le=100),
     min_score: float = Query(50.0, ge=0, le=100),
 ):
@@ -75,7 +75,7 @@ async def get_recommendations(
 async def get_similar_products(
     asin: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(10, ge=1, le=100),
 ):
     """
@@ -131,7 +131,7 @@ async def get_similar_products(
 @router.get("/trending")
 async def get_trending(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(15, ge=1, le=100),
     min_sales: int = Query(100, ge=0),
 ):

@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User
 
 # =====================================================================
@@ -490,7 +490,7 @@ router = APIRouter(prefix="/private-label", tags=["Private Label"])
 @router.post("/products")
 def create_product(
     product: PLProductCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new private label product"""
@@ -510,7 +510,7 @@ def list_products(
     status: Optional[str] = Query(None),
     client_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List private label products with optional filters"""
@@ -529,7 +529,7 @@ def list_products(
 @router.get("/products/{product_id}", response_model=PLProductResponse)
 def get_product(
     product_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get a specific product by ID"""
@@ -548,7 +548,7 @@ def get_product(
 def update_product(
     product_id: int,
     product_update: PLProductUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a private label product"""
@@ -573,7 +573,7 @@ def update_product(
 @router.post("/products/{product_id}/validate")
 def validate_product(
     product_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Run validation scoring on a product"""
@@ -602,7 +602,7 @@ def validate_product(
 def create_sourcing_lead(
     product_id: int,
     lead: PLSourcingLeadCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new sourcing lead for a product"""
@@ -624,7 +624,7 @@ def create_sourcing_lead(
 @router.get("/products/{product_id}/sourcing", response_model=List[PLSourcingLeadResponse])
 def list_sourcing_leads(
     product_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List sourcing leads for a product"""
@@ -645,7 +645,7 @@ def list_sourcing_leads(
 def update_sourcing_lead(
     lead_id: int,
     lead_update: PLSourcingLeadUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a sourcing lead"""
@@ -681,7 +681,7 @@ def update_sourcing_lead(
 def create_launch_plan(
     product_id: int,
     plan: PLLaunchPlanCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a launch plan for a product"""
@@ -710,7 +710,7 @@ def create_launch_plan(
 @router.get("/products/{product_id}/launch-plan", response_model=PLLaunchPlanResponse)
 def get_launch_plan(
     product_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get launch plan for a product"""
@@ -736,7 +736,7 @@ def get_launch_plan(
 def update_launch_plan(
     plan_id: int,
     plan_update: PLLaunchPlanUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a launch plan"""
@@ -771,7 +771,7 @@ def update_launch_plan(
 @router.post("/review-tracker", response_model=PLReviewTrackerResponse)
 def create_review_entry(
     review: PLReviewTrackerCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create or update a review tracker entry"""
@@ -804,7 +804,7 @@ def create_review_entry(
 
 @router.get("/review-tracker", response_model=List[PLReviewTrackerResponse])
 def list_review_trackers(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List all review tracker entries for current user"""
@@ -817,7 +817,7 @@ def list_review_trackers(
 @router.get("/review-tracker/{asin}", response_model=PLReviewTrackerResponse)
 def get_review_tracker(
     asin: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get review history for a specific ASIN"""
@@ -841,7 +841,7 @@ def get_review_tracker(
 def create_brand_asset(
     asset: PLBrandAssetCreate,
     product_id: Optional[int] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Create a new brand asset"""
@@ -869,7 +869,7 @@ def create_brand_asset(
 def list_brand_assets(
     product_id: Optional[int] = Query(None),
     asset_type: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """List brand assets"""
@@ -890,7 +890,7 @@ def list_brand_assets(
 def update_brand_asset(
     asset_id: int,
     asset_update: PLBrandAssetUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Update a brand asset"""
@@ -926,7 +926,7 @@ class DashboardSummary(BaseModel):
 
 @router.get("/dashboard", response_model=DashboardSummary)
 def get_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """Get Private Label dashboard summary"""
