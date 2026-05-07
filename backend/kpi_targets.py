@@ -29,8 +29,14 @@ class KPITarget(Base):
     name = Column(String(200), default="")
     role_type = Column(String(50), default="sourcing_expert")  # account_manager / sourcing_expert
     period = Column(String(20), default="monthly")  # weekly / monthly / quarterly / yearly
-    period_label = Column(String(50), default="")  # e.g. "March 2026", "Q1 2026", "2026"
     metrics_json = Column(Text, default="{}")  # JSON blob of metric targets
+    # Note: period_label was previously declared here but the matching
+    # column was never added to the prod DB (schema drift). The
+    # period_label field on the API surface is retained as a passthrough
+    # — callers can still send/receive it — but it is not persisted or
+    # filtered on. If period-level disambiguation becomes needed, add an
+    # Alembic migration introducing the column and re-thread it through
+    # the routes below.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
@@ -59,9 +65,8 @@ def get_targets(
         KPITarget.org_id == user.org_id,
         KPITarget.period == period,
     )
-    if period_label:
-        q = q.filter(KPITarget.period_label == period_label)
-
+    # period_label filter was removed — column is not persisted (see
+    # KPITarget docstring above). If supplied, accepted but ignored.
     rows = q.all()
 
     targets = {}
@@ -75,7 +80,7 @@ def get_targets(
             "name": row.name,
             "role_type": row.role_type,
             "period": row.period,
-            "period_label": row.period_label or "",
+            "period_label": "",  # not persisted; see KPITarget docstring
             "metrics": metrics,
             "updated_at": str(row.updated_at) if row.updated_at else None,
         }
@@ -97,7 +102,6 @@ def save_targets(
             KPITarget.org_id == user.org_id,
             KPITarget.username == data.username,
             KPITarget.period == data.period,
-            KPITarget.period_label == (data.period_label or ""),
         )
         .first()
     )
@@ -116,7 +120,6 @@ def save_targets(
             name=data.name or data.username,
             role_type=data.role_type,
             period=data.period,
-            period_label=data.period_label or "",
             metrics_json=metrics_str,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
