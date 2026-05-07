@@ -429,15 +429,21 @@ def get_po_statistics(
         )
     ).count()
 
-    # julianday() is SQLite-only. In Postgres, subtracting two timestamps
-    # yields an interval; EXTRACT(EPOCH FROM …) gives total seconds, ÷86400 = days.
+    # PR #17's c5 commit replaced SQLite's julianday() with
+    # `EXTRACT(epoch FROM ts1 - ts2) / 86400`. That works for `timestamp`
+    # columns (subtraction yields an interval). But order_date and
+    # actual_delivery are declared as Date in this file (line 40, 42) and
+    # in the prod schema as `date` — and `date - date` in Postgres yields
+    # an integer (number of days), not an interval. EXTRACT(epoch FROM
+    # <integer>) is invalid and raises:
+    #     function pg_catalog.extract(unknown, integer) does not exist.
+    # The fix is simpler than c5's intent: just subtract the dates and
+    # take the average. Postgres returns the integer day count directly,
+    # which is exactly what we want here (no sub-day precision is
+    # possible anyway because both inputs are dates without a time
+    # component). avg() lifts to numeric.
     delivery_logs = db.query(
-        func.avg(
-            func.extract(
-                "epoch",
-                PurchaseOrder.actual_delivery - PurchaseOrder.order_date,
-            ) / 86400.0
-        )
+        func.avg(PurchaseOrder.actual_delivery - PurchaseOrder.order_date)
     ).filter(
         and_(
             PurchaseOrder.org_id == org_id,
