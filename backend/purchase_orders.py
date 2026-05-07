@@ -429,9 +429,14 @@ def get_po_statistics(
         )
     ).count()
 
+    # julianday() is SQLite-only. In Postgres, subtracting two timestamps
+    # yields an interval; EXTRACT(EPOCH FROM …) gives total seconds, ÷86400 = days.
     delivery_logs = db.query(
         func.avg(
-            func.julianday(PurchaseOrder.actual_delivery) - func.julianday(PurchaseOrder.order_date)
+            func.extract(
+                "epoch",
+                PurchaseOrder.actual_delivery - PurchaseOrder.order_date,
+            ) / 86400.0
         )
     ).filter(
         and_(
