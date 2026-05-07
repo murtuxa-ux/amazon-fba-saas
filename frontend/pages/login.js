@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAuth } from '../context/AuthContext';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -174,6 +175,7 @@ const styles = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login: authLogin, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -186,13 +188,16 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetFocused, setResetFocused] = useState(false);
 
+  // Mount + redirect-if-already-authenticated. Reads from AuthContext
+  // (single source of truth) instead of localStorage directly — otherwise
+  // we can disagree with AuthGuard, which gates routes on the same
+  // context state and would bounce us right back here.
   useEffect(() => {
     setMounted(true);
-    const token = localStorage.getItem('ecomera_token');
-    if (token) {
+    if (isAuthenticated) {
       router.push('/');
     }
-  }, [router]);
+  }, [router, isAuthenticated]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -206,42 +211,24 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.detail || data.message || 'Login failed. Please check your credentials.');
-        setLoading(false);
-        return;
-      }
-
+      // Delegate to AuthContext.login — it writes the token and user to
+      // localStorage AND updates the AuthContext React state in one
+      // transaction, so AuthGuard's `isAuthenticated` flips to true on
+      // the very next render. The previous bespoke flow here only wrote
+      // to localStorage; AuthContext stayed null, AuthGuard saw a
+      // not-authenticated user, redirected to /login, and the mount
+      // useEffect bounced us back to / on the token presence — locking
+      // clean-browser logins in a redirect loop. (Issue #15, Bug A.)
+      //
+      // Backend accepts either username or email under the same field;
+      // we pass the form's email value as the identifier.
+      await authLogin(email, password);
       setSuccess('Login successful! Redirecting...');
-
-      // Store token
-      localStorage.setItem('ecomera_token', data.token);
-
-      // Store user data — backend returns both flat and nested user object
-      const userData = data.user || {
-        username: data.username,
-        name: data.name,
-        role: data.role,
-        email: data.email,
-        avatar: data.avatar,
-        org_id: data.org_id,
-        org_name: data.org_name,
-      };
-      localStorage.setItem('ecomera_user', JSON.stringify(userData));
-
       setTimeout(() => {
         router.push('/');
       }, 500);
     } catch (err) {
-      setError('Connection error. Please try again.');
+      setError(err.message || 'Login failed. Please check your credentials.');
       setLoading(false);
     }
   };
