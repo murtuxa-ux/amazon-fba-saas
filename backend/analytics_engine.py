@@ -10,7 +10,7 @@ from sqlalchemy import desc, func, and_
 from config import settings
 from database import get_db
 from models import Product, ScoutResult
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 @router.get("/overview")
 async def get_analytics_overview(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get overview of product portfolio analytics.
@@ -84,7 +84,7 @@ async def get_analytics_overview(
 @router.get("/roi-analysis")
 async def get_roi_analysis(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     limit: int = Query(20, ge=1, le=100),
 ):
     """
@@ -146,7 +146,7 @@ async def get_roi_analysis(
 @router.get("/efficiency")
 async def get_efficiency_metrics(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get efficiency metrics for product portfolio.
@@ -215,7 +215,7 @@ async def get_efficiency_metrics(
 @router.get("/growth")
 async def get_growth_metrics(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get growth metrics and trend analysis.

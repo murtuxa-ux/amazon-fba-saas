@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User, Organization, Product, ProfitAnalysis
 from database import get_db
 
@@ -389,7 +389,7 @@ def estimate_amazon_category(asin: str) -> str:
 @router.post("/analyze", response_model=SingleAnalysisResponse)
 async def analyze_single_profit(
     request: ProfitAnalysisRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -495,7 +495,7 @@ async def analyze_single_profit(
 @router.post("/bulk-analyze", response_model=BulkAnalysisResponse)
 async def bulk_analyze_profit(
     request: BulkProfitRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -576,7 +576,7 @@ async def bulk_analyze_profit(
 @router.post("/landed-cost", response_model=LandedCostResponse)
 async def calculate_landed_cost(
     request: LandedCostRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """
     Calculate total landed cost per unit, case, and order.
@@ -627,7 +627,7 @@ async def calculate_landed_cost(
 @router.get("/fee-estimate/{asin}", response_model=FeeEstimateResponse)
 async def get_fee_estimate(
     asin: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """
     Get estimated Amazon fees for an ASIN.
@@ -677,7 +677,7 @@ async def get_fee_estimate(
 @router.post("/deal-scanner", response_model=DealScannerResponse)
 async def scan_deals(
     request: DealScannerRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -782,7 +782,7 @@ async def scan_deals(
 @router.get("/history", response_model=List[SingleAnalysisResponse])
 async def get_analysis_history(
     filters: HistoryFilters = Depends(),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -853,7 +853,7 @@ async def get_analysis_history(
 
 @router.get("/dashboard", response_model=DashboardMetrics)
 async def get_dashboard_metrics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """

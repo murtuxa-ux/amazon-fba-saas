@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, tenant_session
 from database import get_db
 from models import BuyBoxAlert, BuyBoxHistory, BuyBoxTracker, User
 
@@ -226,7 +226,7 @@ def _calculate_win_rate_over_time(history: List[HistoryEntry]) -> List[dict]:
 # ── Endpoints ──────────────────────────────────────────────────────────────
 @router.get("/tracked", response_model=List[TrackedItem])
 async def list_tracked_asins(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """All actively-tracked ASINs for the user's org."""
@@ -244,7 +244,7 @@ async def list_tracked_asins(
 @router.post("/track")
 async def add_asin_tracking(
     payload: TrackInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Add ASIN(s) to tracking. Accepts {"asin": "ABC"} or {"asins": ["ABC", ...]}."""
@@ -297,7 +297,7 @@ async def add_asin_tracking(
 @router.delete("/tracked/{asin}")
 async def remove_asin_tracking(
     asin: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Soft-remove an ASIN from tracking (sets is_active=False)."""
@@ -321,7 +321,7 @@ async def remove_asin_tracking(
 
 @router.get("/analytics", response_model=AnalyticsResponse)
 async def get_analytics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Org-wide buy box dashboard metrics."""
@@ -378,7 +378,7 @@ async def get_alerts(
     severity: Optional[str] = Query(None, pattern="^(critical|warning|info)$"),
     is_read: Optional[bool] = None,
     days_back: int = Query(7, ge=1, le=90),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Buy box alerts (lost buy box, price drops, new competitors, suppressions)."""
@@ -413,7 +413,7 @@ async def get_alerts(
 @router.post("/alerts/{alert_id}/read")
 async def mark_alert_read(
     alert_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     try:
@@ -437,7 +437,7 @@ async def mark_alert_read(
 @router.get("/status/{asin}", response_model=DetailedStatus)
 async def get_detailed_status(
     asin: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Detailed buy-box status for a single ASIN — current winner, history, competitors."""
@@ -473,7 +473,7 @@ async def get_detailed_status(
 @router.get("/competitors/{asin}", response_model=CompetitorAnalysis)
 async def get_competitor_analysis(
     asin: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Competitor breakdown for an ASIN. Mock until Phase 2 wires live Keepa offers."""
@@ -571,7 +571,7 @@ async def generate_reprice_suggestions(
 async def get_price_history(
     asin: str,
     days: int = Query(30, ge=1, le=365),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Price + buy-box history. Mocked until Phase 2 reads real BuyBoxHistory rows."""

@@ -11,7 +11,7 @@ from sqlalchemy import func
 from config import settings
 from database import get_db
 from models import User, ScoutResult, Product
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/pricing", tags=["Pricing Optimization"])
 
@@ -104,7 +104,7 @@ def calculate_optimal_price(
 @router.post("/optimize")
 async def optimize_pricing(
     request: PricingOptimizationRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -157,7 +157,7 @@ async def optimize_pricing(
 
 @router.get("/margins")
 async def analyze_profit_margins(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     category: Optional[str] = Query(None)
 ):
@@ -236,7 +236,7 @@ async def analyze_profit_margins(
 
 @router.get("/breakeven")
 async def calculate_breakeven(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
     category: Optional[str] = Query(None)
 ):

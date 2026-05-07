@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import json
 import statistics
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -366,7 +366,7 @@ def generate_report_data(template: ReportTemplate, client_id: str, period_start:
 @router.get("/templates", response_model=List[ReportTemplateResponse])
 def list_templates(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List all report templates for the user's organization"""
     templates = db.query(ReportTemplate).filter(
@@ -379,7 +379,7 @@ def list_templates(
 def create_template(
     template: ReportTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Create a new report template"""
     db_template = ReportTemplate(
@@ -402,7 +402,7 @@ def create_template(
 def get_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get a specific report template"""
     template = db.query(ReportTemplate).filter(
@@ -420,7 +420,7 @@ def update_template(
     template_id: int,
     template: ReportTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Update a report template"""
     db_template = db.query(ReportTemplate).filter(
@@ -448,7 +448,7 @@ def update_template(
 def generate_report(
     report: GeneratedReportCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Generate a new report from template and client data"""
     template = db.query(ReportTemplate).filter(
@@ -488,7 +488,7 @@ def list_reports(
     status: Optional[str] = Query(None),
     report_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List generated reports with optional filters"""
     query = db.query(GeneratedReport).filter(
@@ -510,7 +510,7 @@ def list_reports(
 def get_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get a specific generated report"""
     report = db.query(GeneratedReport).filter(
@@ -528,7 +528,7 @@ def send_report(
     report_id: int,
     sent_to: List[str],
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Mark report as sent to recipients"""
     report = db.query(GeneratedReport).filter(
@@ -551,7 +551,7 @@ def send_report(
 @router.get("/schedules", response_model=List[ReportScheduleResponse])
 def list_schedules(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List all report schedules"""
     schedules = db.query(ReportSchedule).filter(
@@ -564,7 +564,7 @@ def list_schedules(
 def create_schedule(
     schedule: ReportScheduleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Create a new report schedule"""
     # Calculate next run
@@ -591,7 +591,7 @@ def update_schedule(
     schedule_id: int,
     schedule: ReportScheduleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Update a report schedule"""
     db_schedule = db.query(ReportSchedule).filter(
@@ -619,7 +619,7 @@ def list_benchmarks(
     client_id: Optional[str] = Query(None),
     metric_name: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List benchmark data with optional filters"""
     query = db.query(BenchmarkData).filter(
@@ -639,7 +639,7 @@ def list_benchmarks(
 def calculate_benchmarks(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Calculate benchmarks for a client"""
     metrics = ["revenue", "acos", "units_sold", "margin_pct"]
@@ -692,7 +692,7 @@ def list_anomalies(
     client_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """List detected anomalies with optional filters"""
     query = db.query(AnomalyDetection).filter(
@@ -712,7 +712,7 @@ def list_anomalies(
 @router.post("/anomalies/scan")
 def scan_anomalies(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Scan for anomalies across all clients"""
     # Mock: Get all clients for org
@@ -751,7 +751,7 @@ def acknowledge_anomaly(
     anomaly_id: int,
     notes: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Acknowledge an anomaly"""
     anomaly = db.query(AnomalyDetection).filter(
@@ -773,7 +773,7 @@ def acknowledge_anomaly(
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     """Get dashboard summary for reporting"""
     reports_count = db.query(func.count(GeneratedReport.id)).filter(

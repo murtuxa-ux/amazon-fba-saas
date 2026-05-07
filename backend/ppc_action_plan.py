@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, JSON, ForeignKey, desc
 from database import get_db, Base, engine
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User
 
 _log = logging.getLogger("ppc_action_plan")
@@ -632,7 +632,7 @@ router = APIRouter(prefix="/ppc-action-plan", tags=["ppc-action-plan"])
 def list_rules(
     client_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     q = db.query(PPCRulesConfig).filter(PPCRulesConfig.org_id == user.org_id)
     if client_id is not None:
@@ -659,7 +659,7 @@ def list_rules(
 def save_rules(
     data: RulesConfigInput,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     config = PPCRulesConfig(org_id=user.org_id, **data.dict())
     db.add(config)
@@ -672,7 +672,7 @@ def update_rules(
     config_id: int,
     data: RulesConfigInput,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     config = db.query(PPCRulesConfig).filter(
         PPCRulesConfig.id == config_id,
@@ -694,7 +694,7 @@ def list_plans(
     client_id: Optional[int] = None,
     limit: int = Query(default=20, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     q = db.query(PPCActionPlan).filter(PPCActionPlan.org_id == user.org_id)
     if client_id:
@@ -716,7 +716,7 @@ def list_plans(
 def get_plan_detail(
     plan_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     plan = db.query(PPCActionPlan).filter(
         PPCActionPlan.id == plan_id,
@@ -778,7 +778,7 @@ async def generate_plan_from_csv(
     client_id: Optional[int] = Form(None),
     rules_config_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     content = await file.read()
     rows = parse_csv_upload(content)
@@ -843,7 +843,7 @@ def approve_bid_change(
     item_id: int,
     data: ApprovalUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     item = db.query(PPCBidChange).filter(PPCBidChange.id == item_id).first()
     if not item:
@@ -859,7 +859,7 @@ def approve_harvest(
     item_id: int,
     data: ApprovalUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     item = db.query(PPCKeywordHarvest).filter(PPCKeywordHarvest.id == item_id).first()
     if not item:
@@ -875,7 +875,7 @@ def approve_negative(
     item_id: int,
     data: ApprovalUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     item = db.query(PPCNegativeKeyword).filter(PPCNegativeKeyword.id == item_id).first()
     if not item:
@@ -890,7 +890,7 @@ def approve_negative(
 def approve_entire_plan(
     plan_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     plan = db.query(PPCActionPlan).filter(
         PPCActionPlan.id == plan_id,
@@ -915,7 +915,7 @@ def update_plan_status(
     status: str = Query(..., description="draft, reviewed, approved, applied"),
     notes: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     plan = db.query(PPCActionPlan).filter(
         PPCActionPlan.id == plan_id,

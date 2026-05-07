@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 
 from database import get_db, Base
 from models import User, Organization
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, tenant_session
 
 router = APIRouter(prefix="/kpi", tags=["kpi"])
 
@@ -51,7 +51,7 @@ class TargetInput(BaseModel):
 def get_targets(
     period: Optional[str] = "monthly",
     period_label: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Get all KPI targets for the organization, keyed by username."""
@@ -86,7 +86,7 @@ def get_targets(
 @router.post("/targets")
 def save_targets(
     data: TargetInput,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """Save or update KPI targets for a team member."""

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 
 # ============================================================================
 # SQLALCHEMY MODELS
@@ -254,7 +254,7 @@ def extract_year_from_month(month_str: str) -> int:
     return int(month_str.split('-')[0])
 
 
-def get_current_org(current_user=Depends(get_current_user)) -> int:
+def get_current_org(current_user=Depends(tenant_session)) -> int:
     """Get org_id from current user context"""
     return current_user.org_id
 
@@ -268,7 +268,7 @@ def create_or_update_pnl(
     data: ClientPnLCreate,
     db: Session = Depends(get_db),
     org_id: int = Depends(get_current_org),
-    current_user=Depends(get_current_user)
+    current_user=Depends(tenant_session)
 ):
     """
     Create or update (upsert) monthly P&L for a client.

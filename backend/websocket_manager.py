@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from jose import jwt
 
 from config import settings
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db
 from models import User, Organization
 
@@ -263,7 +263,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db=Depends(get_db
 
 @router.get("/status")
 async def get_connection_status(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db=Depends(get_db)
 ):
     """
@@ -285,7 +285,7 @@ async def get_connection_status(
 @router.post("/broadcast")
 async def broadcast_message(
     message_data: dict,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db=Depends(get_db)
 ):
     """

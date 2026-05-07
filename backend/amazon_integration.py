@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, JSON, ForeignKey
 from database import get_db, Base, engine
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User
 
 import httpx
@@ -649,7 +649,7 @@ router = APIRouter(prefix="/amazon", tags=["amazon-integration"])
 @router.get("/credentials")
 def list_credentials(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """List all Amazon API credentials for the user's org."""
     creds = db.query(AmazonCredential).filter(
@@ -675,7 +675,7 @@ def list_credentials(
 def save_credential(
     data: CredentialInput,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Save or update Amazon API credentials."""
     existing = db.query(AmazonCredential).filter(
@@ -713,7 +713,7 @@ def save_credential(
 def delete_credential(
     cred_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Delete Amazon API credentials."""
     cred = db.query(AmazonCredential).filter(
@@ -731,7 +731,7 @@ def delete_credential(
 async def test_connection(
     data: CredentialInput,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Test Amazon API credentials without saving them."""
     try:
@@ -768,7 +768,7 @@ async def trigger_sync(
     req: SyncRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Trigger a sync of Amazon data. Runs in the background."""
     # Update credential status to syncing
@@ -797,7 +797,7 @@ async def trigger_sync(
 @router.get("/sync/status")
 def get_sync_status(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Get the current sync status for all credential types."""
     creds = db.query(AmazonCredential).filter(
@@ -821,7 +821,7 @@ def get_sync_logs(
     limit: int = Query(default=50, le=200),
     sync_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Get sync history logs."""
     query = db.query(AmazonSyncLog).filter(AmazonSyncLog.org_id == user.org_id)

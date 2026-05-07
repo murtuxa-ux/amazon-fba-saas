@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User, Organization, FBAShipment, FBAShipmentItem
 from database import get_db
 
@@ -290,7 +290,7 @@ def _estimate_delivery_days(shipping_method: str, destination_fc: str) -> int:
 @router.get("/", response_model=List[FBAShipmentResponse])
 async def list_shipments(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     status: Optional[str] = Query(None, description="draft/ready/shipped/in_transit/received/closed"),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
@@ -318,7 +318,7 @@ async def list_shipments(
 async def create_shipment(
     shipment: FBAShipmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Create a new shipment plan."""
     # Validate fulfillment center
@@ -357,7 +357,7 @@ async def create_shipment(
 async def get_shipment(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get shipment details with all items."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -369,7 +369,7 @@ async def update_shipment(
     id: int,
     update_data: FBAShipmentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Update shipment details."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -406,7 +406,7 @@ async def update_shipment(
 async def delete_shipment(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Delete a draft shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -434,7 +434,7 @@ async def add_shipment_item(
     id: int,
     item: FBAShipmentItemCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Add items to a shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -477,7 +477,7 @@ async def add_shipment_item(
 async def list_shipment_items(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """List all items in a shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -491,7 +491,7 @@ async def update_shipment_item(
     item_id: int,
     update_data: FBAShipmentItemUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Update an item in a shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -536,7 +536,7 @@ async def delete_shipment_item(
     id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Remove an item from a shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -570,7 +570,7 @@ async def delete_shipment_item(
 async def generate_packing_plan(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Generate a packing plan for the shipment."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -598,7 +598,7 @@ async def mark_shipment_shipped(
     ship_date: Optional[datetime] = None,
     estimated_arrival: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Mark shipment as shipped."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -629,7 +629,7 @@ async def mark_shipment_shipped(
 async def get_tracking(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get tracking updates for a shipment (mock data)."""
     shipment = _get_shipment_or_404(db, id, current_user.org_id)
@@ -667,7 +667,7 @@ async def get_tracking(
 @router.get("/dashboard/metrics", response_model=ShipmentMetrics)
 async def get_dashboard_metrics(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get shipment dashboard metrics."""
     org_id = current_user.org_id
@@ -734,7 +734,7 @@ async def get_dashboard_metrics(
 @router.get("/prep-requirements", response_model=PrepGuidelinesResponse)
 async def get_prep_requirements(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get FBA prep requirement guidelines."""
     guidelines = [PrepRequirements(**g) for g in PREP_GUIDELINES]
@@ -755,7 +755,7 @@ async def get_prep_requirements(
 async def estimate_shipping_cost(
     request: ShippingCostEstimateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Estimate shipping cost based on shipment parameters."""
     # Validate inputs

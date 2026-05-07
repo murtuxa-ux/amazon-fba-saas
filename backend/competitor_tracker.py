@@ -10,7 +10,7 @@ from sqlalchemy import desc, func, and_
 from config import settings
 from database import get_db
 from models import ScoutResult
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/competitors", tags=["Competitor Tracking"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/competitors", tags=["Competitor Tracking"])
 @router.get("/overview")
 async def get_competitor_overview(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get overview of competitive landscape.
@@ -71,7 +71,7 @@ async def get_competitor_overview(
 @router.get("/crowded")
 async def get_crowded_niches(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
     min_sellers: int = Query(10, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
@@ -125,7 +125,7 @@ async def get_crowded_niches(
 async def get_brand_competition(
     brand: str,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(tenant_session),
 ):
     """
     Get competitive analysis for products from a specific brand.

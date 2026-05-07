@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import json
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -390,7 +390,7 @@ router = APIRouter(prefix="/workflow", tags=["Workflow"])
 @router.get("/tasks")
 def list_tasks(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     assigned_to: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     priority: Optional[str] = Query(None),
@@ -419,7 +419,7 @@ def list_tasks(
 def create_task(
     task_data: TaskCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Create a new task"""
     task = Task(
@@ -437,7 +437,7 @@ def create_task(
 def get_task(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get a specific task"""
     task = db.query(Task).filter(
@@ -455,7 +455,7 @@ def update_task(
     task_id: int,
     task_data: TaskUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Update a task"""
     task = db.query(Task).filter(
@@ -480,7 +480,7 @@ def update_task_status(
     task_id: int,
     status_data: TaskStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Update task status"""
     task = db.query(Task).filter(
@@ -508,7 +508,7 @@ def update_task_status(
 @router.get("/tasks/my-tasks")
 def get_my_tasks(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get current user's tasks"""
     tasks = db.query(Task).filter(
@@ -527,7 +527,7 @@ def get_my_tasks(
 @router.get("/sops")
 def list_sops(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """List all SOP templates"""
     sops = db.query(SOPTemplate).filter(
@@ -541,7 +541,7 @@ def list_sops(
 def create_sop(
     sop_data: SOPTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Create a new SOP template"""
     sop = SOPTemplate(
@@ -558,7 +558,7 @@ def create_sop(
 def get_sop(
     sop_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get a specific SOP template"""
     sop = db.query(SOPTemplate).filter(
@@ -576,7 +576,7 @@ def update_sop(
     sop_id: int,
     sop_data: SOPTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Update a SOP template"""
     sop = db.query(SOPTemplate).filter(
@@ -601,7 +601,7 @@ def execute_sop(
     sop_id: int,
     execution_data: SOPExecutionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Start SOP execution for a client/task"""
     sop = db.query(SOPTemplate).filter(
@@ -635,7 +635,7 @@ def execute_sop(
 def get_sop_execution(
     execution_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get a specific SOP execution"""
     execution = db.query(SOPExecution).filter(
@@ -653,7 +653,7 @@ def update_sop_execution(
     execution_id: int,
     update_data: SOPExecutionUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Advance SOP execution step"""
     execution = db.query(SOPExecution).filter(
@@ -690,7 +690,7 @@ def update_sop_execution(
 @router.get("/time-entries")
 def list_time_entries(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     user_id: Optional[int] = Query(None),
     client_id: Optional[int] = Query(None),
     date_from: Optional[datetime] = Query(None),
@@ -716,7 +716,7 @@ def list_time_entries(
 def create_time_entry(
     entry_data: TimeEntryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Create a time entry"""
     entry = TimeEntry(
@@ -733,7 +733,7 @@ def create_time_entry(
 @router.get("/time-entries/summary")
 def get_time_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
 ):
@@ -774,7 +774,7 @@ def get_time_summary(
 @router.get("/capacity")
 def get_team_capacity(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get team capacity overview"""
     week_start = datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())
@@ -790,7 +790,7 @@ def get_team_capacity(
 @router.post("/capacity/calculate")
 def calculate_all_capacity(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Refresh capacity for all team members"""
     team_members = db.query(User).filter(
@@ -813,7 +813,7 @@ def calculate_all_capacity(
 @router.get("/dashboard")
 def get_workflow_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
 ):
     """Get workflow dashboard data"""
     # Open tasks by status

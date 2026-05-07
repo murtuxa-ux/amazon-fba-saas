@@ -12,7 +12,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import json
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 
 
 # ========================
@@ -242,7 +242,7 @@ def get_risk_level(risk_score: float) -> str:
 @router.get("/dashboard")
 def get_intelligence_dashboard(
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> DashboardResponse:
     """
@@ -392,7 +392,7 @@ def list_alerts(
     date_to: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -460,7 +460,7 @@ def list_alerts(
 def mark_alert_read(
     alert_id: int,
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> IntelligenceAlertResponse:
     """Mark a specific alert as read"""
@@ -499,7 +499,7 @@ def mark_alert_read(
 def dismiss_alert(
     alert_id: int,
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> IntelligenceAlertResponse:
     """Dismiss a specific alert"""
@@ -537,7 +537,7 @@ def dismiss_alert(
 @router.put("/alerts/read-all")
 def mark_all_alerts_read(
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Mark all alerts as read for the organization"""
@@ -562,7 +562,7 @@ def score_product(
     asin: str,
     score_data: ProductScoreCreate,
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> ProductScoreResponse:
     """
@@ -642,7 +642,7 @@ def list_product_scores(
     sort_by: str = Query("overall_score", regex="^(overall_score|opportunity_score|risk_score|demand_score|competition_score)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -696,7 +696,7 @@ def list_product_scores(
 def get_product_score_detail(
     asin: str,
     org_id: int = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> ProductScoreResponse:
     """Get detailed score breakdown for a specific product"""
@@ -732,7 +732,7 @@ def get_top_opportunities(
     min_score: float = Query(60.0, ge=0, le=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -782,7 +782,7 @@ def get_flagged_risks(
     min_risk_score: float = Query(50.0, ge=0, le=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -832,7 +832,7 @@ def get_market_trends(
     days: int = Query(30, ge=1, le=365),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -885,7 +885,7 @@ def get_competitor_watch(
     days: int = Query(7, ge=1, le=90),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """

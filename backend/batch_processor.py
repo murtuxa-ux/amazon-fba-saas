@@ -15,7 +15,7 @@ import asyncio
 from config import settings
 from database import get_db
 from models import Product, ScoutResult, User
-from auth import get_current_user, get_org_scoped_query
+from auth import get_current_user, get_org_scoped_query, tenant_session
 
 router = APIRouter(prefix="/batch", tags=["batch-processing"])
 
@@ -94,7 +94,7 @@ async def process_batch_async(batch_id: str, db: Session):
 async def queue_batch_scout(
     request: BatchScoutRequest,
     background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -138,7 +138,7 @@ async def queue_batch_scout(
 @router.get("/status/{batch_id}", response_model=BatchStatus)
 async def get_batch_status(
     batch_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -172,7 +172,7 @@ async def get_batch_status(
 async def get_batch_history(
     limit: int = 20,
     status_filter: str = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -213,7 +213,7 @@ async def get_batch_history(
 @router.delete("/cancel/{batch_id}")
 async def cancel_batch(
     batch_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """
@@ -239,7 +239,7 @@ async def cancel_batch(
 
 @router.get("/stats")
 async def get_batch_statistics(
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     db: Session = Depends(get_db)
 ):
     """

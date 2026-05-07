@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 from database import Base, get_db
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 
 
 # ============================================================================
@@ -312,7 +312,7 @@ def log_status_change(
 def create_purchase_order(
     po_create: PurchaseOrderCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Create a new purchase order with optional line items"""
     org_id = current_user.org_id
@@ -372,7 +372,7 @@ def list_purchase_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """List purchase orders with optional filtering and pagination"""
     org_id = current_user.org_id
@@ -404,7 +404,7 @@ def list_purchase_orders(
 @router.get("/stats", response_model=POStatsResponse)
 def get_po_statistics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Get purchase order statistics summary"""
     org_id = current_user.org_id
@@ -456,7 +456,7 @@ def get_po_statistics(
 def get_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Get full PO with line items and status history"""
     org_id = current_user.org_id
@@ -480,7 +480,7 @@ def get_po_by_client(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Get all purchase orders for a specific client"""
     org_id = current_user.org_id
@@ -500,7 +500,7 @@ def update_purchase_order(
     po_id: int,
     po_update: PurchaseOrderUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Update PO header information"""
     org_id = current_user.org_id
@@ -558,7 +558,7 @@ def change_po_status(
     po_id: int,
     status_change: PurchaseOrderStatusChange,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Change PO status and create audit log entry"""
     org_id = current_user.org_id
@@ -603,7 +603,7 @@ def add_line_item(
     po_id: int,
     item_create: POLineItemCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Add line item to purchase order"""
     org_id = current_user.org_id
@@ -646,7 +646,7 @@ def update_line_item(
     item_id: int,
     item_update: POLineItemUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Update line item"""
     org_id = current_user.org_id
@@ -710,7 +710,7 @@ def delete_line_item(
     po_id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Remove line item from purchase order"""
     org_id = current_user.org_id
@@ -747,7 +747,7 @@ def delete_line_item(
 def delete_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(tenant_session),
 ):
     """Delete purchase order (only allowed if status is draft)"""
     org_id = current_user.org_id

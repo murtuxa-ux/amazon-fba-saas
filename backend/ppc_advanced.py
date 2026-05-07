@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 import statistics
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
 from models import User
 
@@ -354,7 +354,7 @@ async def list_campaigns(
     campaign_type: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(PPCCampaign).filter(
         PPCCampaign.org_id == current_user.org_id,
@@ -372,7 +372,7 @@ async def create_campaign(
     campaign: PPCCampaignSchema,
     client_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     new_campaign = PPCCampaign(
         org_id=current_user.org_id,
@@ -389,7 +389,7 @@ async def create_campaign(
 async def get_campaign(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     campaign = db.query(PPCCampaign).filter(
         PPCCampaign.id == campaign_id,
@@ -405,7 +405,7 @@ async def update_campaign(
     campaign_id: int,
     campaign_update: PPCCampaignSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     campaign = db.query(PPCCampaign).filter(
         PPCCampaign.id == campaign_id,
@@ -424,7 +424,7 @@ async def update_campaign(
 async def get_daypart_schedule(
     campaign_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     campaign = db.query(PPCCampaign).filter(
         PPCCampaign.id == campaign_id,
@@ -443,7 +443,7 @@ async def set_daypart_schedule(
     campaign_id: int,
     schedules: List[PPCDaypartScheduleSchema],
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     campaign = db.query(PPCCampaign).filter(
         PPCCampaign.id == campaign_id,
@@ -474,7 +474,7 @@ async def list_search_terms(
     min_spend: float = Query(0.0),
     isolation_status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     query = db.query(PPCSearchTermReport).filter(
         PPCSearchTermReport.org_id == current_user.org_id,
@@ -493,7 +493,7 @@ async def list_search_terms(
 async def run_isolation_analysis(
     request: IsolationAnalysisRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     campaign = db.query(PPCCampaign).filter(
         PPCCampaign.id == request.campaign_id,
@@ -520,7 +520,7 @@ async def update_search_term_status(
     term_id: int,
     status: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     term = db.query(PPCSearchTermReport).filter(
         PPCSearchTermReport.id == term_id,
@@ -538,7 +538,7 @@ async def update_search_term_status(
 async def list_budget_pacing(
     client_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     return db.query(PPCBudgetPacing).filter(
         PPCBudgetPacing.org_id == current_user.org_id,
@@ -552,7 +552,7 @@ async def create_budget_pacing(
     pacing: PPCBudgetPacingSchema,
     client_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     new_pacing = PPCBudgetPacing(
         org_id=current_user.org_id,
@@ -569,7 +569,7 @@ async def create_budget_pacing(
 async def get_pacing_alerts(
     client_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     alerts = []
     pacings = db.query(PPCBudgetPacing).filter(
@@ -601,7 +601,7 @@ async def get_pacing_alerts(
 async def build_campaign_structure(
     request: CampaignBuilderRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     structure_data = generate_campaign_structure(
         request.parent_asin,
@@ -632,7 +632,7 @@ async def build_campaign_structure(
 async def get_campaign_structure(
     structure_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     structure = db.query(CampaignStructure).filter(
         CampaignStructure.id == structure_id,
@@ -648,7 +648,7 @@ async def get_analytics(
     client_id: str = Query(...),
     days: int = Query(30),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(tenant_session)
 ):
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     campaigns = db.query(PPCCampaign).filter(

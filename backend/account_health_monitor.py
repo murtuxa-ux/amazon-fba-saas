@@ -12,7 +12,7 @@ from typing import List, Optional, Literal
 from enum import Enum
 import logging
 
-from auth import get_current_user
+from auth import get_current_user, tenant_session
 from models import User, Organization, AccountHealthSnapshot, AccountViolation
 from database import get_db
 
@@ -318,7 +318,7 @@ def determine_health_trend(scores: List[int]) -> HealthTrend:
 
 @router.get("/overview", response_model=AccountHealthOverview)
 def get_account_health_overview(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -399,7 +399,7 @@ def get_account_health_overview(
 @router.get("/score-history", response_model=HealthScoreHistory)
 def get_health_score_history(
     days: int = Query(90, ge=1, le=365),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -439,7 +439,7 @@ def get_violations(
     severity: Optional[ViolationSeverity] = None,
     status: Optional[ViolationStatus] = None,
     violation_type: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -504,7 +504,7 @@ def get_violations(
 @router.post("/violations", response_model=AccountViolationSchema)
 def create_violation(
     request: CreateViolationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -555,7 +555,7 @@ def create_violation(
 def update_violation(
     violation_id: int,
     request: UpdateViolationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -613,7 +613,7 @@ def update_violation(
 
 @router.get("/risk-assessment", response_model=RiskAssessment)
 def get_risk_assessment(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -738,7 +738,7 @@ def get_risk_assessment(
 
 @router.get("/alerts", response_model=AlertResponse)
 def get_alerts(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -835,7 +835,7 @@ def get_alerts(
 @router.post("/alerts/{alert_id}/acknowledge")
 def acknowledge_alert(
     alert_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -854,7 +854,7 @@ def acknowledge_alert(
 
 @router.get("/benchmarks", response_model=BenchmarkComparison)
 def get_benchmarks(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """
@@ -959,7 +959,7 @@ def get_benchmarks(
 @router.post("/snapshot", response_model=SnapshotResponse)
 def take_snapshot(
     request: SnapshotRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     """

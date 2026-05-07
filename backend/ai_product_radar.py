@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, get_org_scoped_query, require_role
+from auth import get_current_user, get_org_scoped_query, require_role, tenant_session
 from config import settings
 from database import get_db
 from keepa_service import get_keepa_data
@@ -142,7 +142,7 @@ def _tier_counts(rows: List[Dict]) -> Dict[str, int]:
 @router.get("/scan")
 async def scan_existing(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
     category: Optional[str] = Query(None),
     bsr_max: Optional[int] = Query(None, ge=0),
     price_min: Optional[float] = Query(None, ge=0),
@@ -232,7 +232,7 @@ async def scan_existing(
 @router.get("/categories")
 async def list_categories(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(tenant_session),
 ):
     """Distinct categories present in the org's scout data, with row counts and avg fba_score."""
     try:
