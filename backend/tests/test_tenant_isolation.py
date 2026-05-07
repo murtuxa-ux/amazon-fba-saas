@@ -218,10 +218,15 @@ def _auth(token: str) -> dict:
 def test_list_clients_returns_only_own_org(client: TestClient, two_tenants):
     r = client.get("/clients", headers=_auth(two_tenants["token_a"]))
     assert r.status_code == 200
-    rows = r.json()
-    org_a_id = two_tenants["org_a"].id
-    assert all(row.get("org_id", org_a_id) == org_a_id for row in rows)
+    body = r.json()
+    # /clients returns {"count": N, "clients": [...]}
+    rows = body["clients"]
+    assert body["count"] == 3
     assert len(rows) == 3
+    # The route doesn't surface org_id in the response payload — that's
+    # by design (org_id is internal). Cross-org isolation is verified by
+    # the count assertion (org A has 3 clients; if leaking, we'd see 6).
+    assert all(row["name"].startswith("A-client-") for row in rows)
 
 
 def test_get_client_by_id_other_org_returns_404(client: TestClient, two_tenants):
@@ -237,7 +242,12 @@ def test_get_client_by_id_other_org_returns_404(client: TestClient, two_tenants)
 def test_list_products_returns_only_own_org(client: TestClient, two_tenants):
     r = client.get("/products", headers=_auth(two_tenants["token_a"]))
     assert r.status_code == 200
-    assert len(r.json()) == 5
+    body = r.json()
+    # /products returns {"count": N, "products": [...]}
+    assert body["count"] == 5
+    assert len(body["products"]) == 5
+    # All ASINs prefixed for org A — confirms no cross-org leak.
+    assert all(p["asin"].startswith("ASIN_A_") for p in body["products"])
 
 
 def test_dashboard_aggregates_dont_leak(client: TestClient, two_tenants):
@@ -258,7 +268,7 @@ def test_dashboard_aggregates_dont_leak(client: TestClient, two_tenants):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_put_other_org_client_returns_404_and_doesnt_mutate(
-    client: TestClient, db_session: Session, two_tenants
+    client: TestClient, two_tenants
 ):
     other_id = two_tenants["b_client_ids"][0]
     r = client.put(
@@ -267,12 +277,19 @@ def test_put_other_org_client_returns_404_and_doesnt_mutate(
         json={"name": "PWNED"},
     )
     assert r.status_code == 404
-    # Verify org B's row is unchanged.
-    row = db_session.execute(
-        text("SELECT name FROM clients WHERE id = :id"),
-        {"id": other_id},
-    ).fetchone()
-    assert row is not None
+    # Verify org B's row is unchanged. Use a fresh engine connection — the
+    # request transaction held by the test's db_session is still primed
+    # with SET LOCAL ROLE app_role + app.current_org_id=A from the
+    # tenant_session middleware, so a query on db_session would itself be
+    # RLS-filtered (org A's view) and erroneously not see org B's row.
+    # engine.connect() opens a new connection from the pool, which is
+    # migration_role at the connection level (BYPASSRLS).
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT name FROM clients WHERE id = :id"),
+            {"id": other_id},
+        ).fetchone()
+    assert row is not None, f"client id={other_id} disappeared — RLS leakage on UPDATE?"
     assert row[0] != "PWNED"
 
 
@@ -291,7 +308,21 @@ def test_post_with_forged_org_id_in_body_ignored(client: TestClient, two_tenants
     )
     assert r.status_code in (200, 201)
     body = r.json()
-    assert body["org_id"] == two_tenants["org_a"].id
+    # The route returns {"status": "created", "client": {"id", "name"}}
+    # — no org_id surfaced. Verify the persisted row landed on org A
+    # (caller) and not org B (forged). Use a fresh engine connection to
+    # bypass the test session's SET LOCAL ROLE state.
+    new_id = body["client"]["id"]
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT org_id FROM clients WHERE id = :id"),
+            {"id": new_id},
+        ).fetchone()
+    assert row is not None
+    assert row[0] == two_tenants["org_a"].id, (
+        f"Forged org_id leaked: row landed on org {row[0]} instead of caller's "
+        f"org {two_tenants['org_a'].id}"
+    )
 
 
 def test_post_weekly_report_with_foreign_client_id_rejected(client: TestClient, two_tenants):
@@ -452,8 +483,16 @@ def test_jwt_with_modified_org_id_still_returns_own_data(client: TestClient, two
     )
     r = client.get("/clients", headers={"Authorization": f"Bearer {forged}"})
     if r.status_code == 200:
-        rows = r.json()
-        assert all(row.get("org_id", two_tenants["org_a"].id) == two_tenants["org_a"].id for row in rows)
+        body = r.json()
+        # /clients returns {"count": N, "clients": [...]}.
+        rows = body["clients"]
+        # All returned clients must belong to org A (the user_id's real
+        # org), not org B (the forged claim). The route's payload doesn't
+        # include org_id, so we assert by row count + name prefix:
+        # org A has 3 clients named "A-client-0..2"; if the forged claim
+        # leaked, we'd see org B's "B-client-*" rows.
+        assert body["count"] == 3
+        assert all(r["name"].startswith("A-client-") for r in rows)
     else:
         # Some implementations choose to 401 on mismatch — also acceptable.
         assert r.status_code == 401
