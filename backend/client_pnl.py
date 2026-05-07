@@ -421,10 +421,23 @@ def get_pnl_trends(
     Get revenue/profit trends across all clients (or filtered) by month for charting.
     Aggregates all clients' P&L for each month.
     """
+    # ClientPnL.net_profit is a Python @property (computed from columns at
+    # access time), not a SQL Column — passing it to func.sum() makes
+    # SQLAlchemy try to bind the property object as a parameter, which
+    # psycopg2 rejects with "can't adapt type 'property'". Aggregate the
+    # constituent columns directly to get the same value at the SQL layer.
+    net_profit_expr = (
+        ClientPnL.revenue
+        - ClientPnL.cogs
+        - ClientPnL.fba_fees
+        - ClientPnL.referral_fees
+        - ClientPnL.ad_spend
+        - ClientPnL.other_expenses
+    )
     query = db.query(
         ClientPnL.month,
         func.sum(ClientPnL.revenue).label('total_revenue'),
-        func.sum(ClientPnL.net_profit).label('total_net_profit')
+        func.sum(net_profit_expr).label('total_net_profit')
     ).filter(ClientPnL.org_id == org_id)
 
     if client_id:

@@ -429,6 +429,10 @@ def get_health_score_history(
             average_score=round(avg_score, 2),
         )
 
+    except HTTPException:
+        # Intentional 4xx (e.g. 404 "no score history available") — let it
+        # propagate at the original status code instead of remasking as 500.
+        raise
     except Exception as e:
         logger.error(f"Error getting health score history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve score history")
@@ -731,6 +735,10 @@ def get_risk_assessment(
             last_updated=latest_snapshot.created_at,
         )
 
+    except HTTPException:
+        # Intentional 4xx (e.g. 404 "no risk assessment data available") —
+        # let it propagate at the original status code.
+        raise
     except Exception as e:
         logger.error(f"Error getting risk assessment: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve risk assessment")
@@ -951,6 +959,10 @@ def get_benchmarks(
 
         return BenchmarkComparison(metrics=metrics, overall_status=overall_status)
 
+    except HTTPException:
+        # Intentional 4xx (e.g. 404 "no benchmark data available") — let it
+        # propagate at the original status code.
+        raise
     except Exception as e:
         logger.error(f"Error getting benchmarks: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve benchmarks")

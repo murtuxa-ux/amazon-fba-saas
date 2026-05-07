@@ -14,7 +14,7 @@ from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import text, and_, or_
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user, tenant_session
@@ -965,9 +965,16 @@ async def get_fbm_dashboard(
             else 0
         )
 
-        # Revenue this month
-        revenue = db.query(text("SUM(total_amount)")).filter(
-            text(f"org_id = {current_user.org_id} AND created_at >= '{month_start}'")
+        # Revenue this month — was previously a raw text() query that lacked
+        # a FROM clause (Postgres reported `column "total_amount" does not
+        # exist` because there was no table to look it up in) AND interpolated
+        # `current_user.org_id` and `month_start` into a SQL fragment via
+        # f-string, the shape of an SQL injection. Rewritten as proper ORM:
+        # values bind through psycopg2 parameters, the FROM clause is implied
+        # by the model, and the column reference resolves correctly.
+        revenue = db.query(func.sum(FBMOrder.total_amount)).filter(
+            FBMOrder.org_id == current_user.org_id,
+            FBMOrder.created_at >= month_start,
         ).scalar() or Decimal(0)
 
         logger.info(

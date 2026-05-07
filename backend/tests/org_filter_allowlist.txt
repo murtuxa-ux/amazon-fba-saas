@@ -84,7 +84,7 @@ backend/multi_user_access.py:255  # reason: verify_username_unique helper — ca
 # expression on the same statement).
 
 backend/ai_buybox.py:386                     # reason: q = db.query(BuyBoxAlert).filter(BuyBoxAlert.org_id == current_user.org_id, ...) — org_id filter on the same statement; lint can't follow when subsequent .filter() chain hangs off `q`
-backend/account_health_monitor.py:449        # reason: query = db.query(AccountViolation).filter(AccountViolation.org_id == current_user.org_id) — org_id filter on the same statement
+backend/account_health_monitor.py:453        # reason: query = db.query(AccountViolation).filter(AccountViolation.org_id == current_user.org_id) — org_id filter on the same statement
 backend/brand_approval_tracker.py:300        # reason: query = db.query(BrandApproval).filter(BrandApproval.org_id == get_user_org_scope(current_user)) — org_id filter via helper on the same statement
 backend/fba_shipment_planner.py:301          # reason: query = db.query(FBAShipment).filter(FBAShipment.org_id == current_user.org_id) — org_id filter on the same statement
 backend/fbm_order_manager.py:350             # reason: query = db.query(FBMOrder).filter(FBMOrder.org_id == current_user.org_id) — org_id filter on the same statement

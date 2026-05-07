@@ -60,6 +60,7 @@ Follow-up: tracked as a P1 GitHub issue. Action items there:
 
 import logging
 from datetime import datetime, timedelta
+import logging
 from typing import List, Optional
 from enum import Enum
 
@@ -71,6 +72,9 @@ from sqlalchemy.orm import Session
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from models import User, Organization, Client, WeeklyReport, Product
 from database import get_db
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================

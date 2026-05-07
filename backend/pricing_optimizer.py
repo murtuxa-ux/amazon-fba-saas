@@ -268,7 +268,7 @@ async def calculate_breakeven(
             continue
 
         # Average market price for this category
-        prices = [s.price for s in cat_scouts if s.price]
+        prices = [s.current_price for s in cat_scouts if s.current_price]
         avg_price = sum(prices) / len(prices) if prices else 0
 
         # FBA fee rate

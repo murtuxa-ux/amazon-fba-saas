@@ -219,7 +219,8 @@ async def get_system_logs(
     Get recent application logs
     Requires: admin or owner role
     """
-    require_role(current_user, ["admin", "owner"])
+    if current_user.role not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Admin or owner role required")
 
     logs = app_logs.copy()
 
@@ -262,7 +263,8 @@ async def clear_logs(
     Clear the in-memory log buffer
     Requires: owner role
     """
-    require_role(current_user, ["owner"])
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Owner role required")
 
     log_count = len(app_logs)
     app_logs.clear()
@@ -283,7 +285,8 @@ async def get_diagnostics(
     Get comprehensive system diagnostics
     Requires: admin or owner role
     """
-    require_role(current_user, ["admin", "owner"])
+    if current_user.role not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Admin or owner role required")
 
     try:
         # System status
