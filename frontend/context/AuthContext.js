@@ -4,6 +4,37 @@
  */
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
+// Tag Sentry events with the authed user. Imported lazily inside the
+// callbacks so SSR doesn't pull the SDK into the server-side render path
+// of unauthenticated routes. No-op when @sentry/nextjs is missing or the
+// DSN env var is empty (rollback flag).
+function tagSentryUser(user) {
+  if (typeof window === "undefined") return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sentry = require("@sentry/nextjs");
+    Sentry.setUser({
+      id: user.username,
+      username: user.username,
+      email: user.email,
+    });
+    if (user.org_id != null) Sentry.setTag("organization_id", user.org_id);
+  } catch (_e) {
+    // SDK absent or DSN unset — silently skip.
+  }
+}
+
+function clearSentryUser() {
+  if (typeof window === "undefined") return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sentry = require("@sentry/nextjs");
+    Sentry.setUser(null);
+  } catch (_e) {
+    // SDK absent — silently skip.
+  }
+}
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://amazon-fba-saas-production.up.railway.app";
@@ -120,6 +151,7 @@ export function AuthProvider({ children }) {
 
     // Trust storage. Render the dashboard.
     setUser(storedUser);
+    tagSentryUser(storedUser);
     setLoading(false);
 
     // Background validation — best-effort.
@@ -136,6 +168,7 @@ export function AuthProvider({ children }) {
         };
         setUser(u);
         setStoredUser(u);
+        tagSentryUser(u);
       })
       .catch((err) => {
         if (err && err.status === 401) {
@@ -181,6 +214,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     setStoredUser(userData);
     setUser(userData);
+    tagSentryUser(userData);
     return userData;
   }, []);
 
@@ -199,6 +233,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     setStoredUser(userData);
     setUser(userData);
+    tagSentryUser(userData);
     return userData;
   }, []);
 
@@ -212,6 +247,7 @@ export function AuthProvider({ children }) {
     }
     removeToken();
     setUser(null);
+    clearSentryUser();
     window.location.href = "/login";
   }, []);
 

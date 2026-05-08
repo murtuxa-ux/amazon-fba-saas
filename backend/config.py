@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # request. Flip back to false to roll back without redeploying.
     RLS_ENFORCED: bool = False
 
+    # Observability (§2.8). Empty SENTRY_DSN keeps the SDK disabled —
+    # see CONVENTIONS.md §Rollback playbook. The SDK is still imported
+    # and middleware still installs request_id headers regardless of DSN.
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "production"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    LOG_LEVEL: str = "INFO"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

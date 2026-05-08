@@ -181,4 +181,14 @@ def tenant_session(
             text("SET LOCAL app.current_org_id = :oid"),
             {"oid": user.org_id},
         )
+    # Observability (§2.8): tag Sentry events + structlog contextvars with
+    # the authed user. No-ops when SENTRY_DSN is empty. Imported lazily so
+    # auth.py keeps no top-level dependency on observability/sentry_sdk.
+    try:
+        from observability import tag_sentry_user
+        tag_sentry_user(user.id, user.org_id, getattr(user, "username", None))
+    except Exception:
+        # Tagging must never break a request. Sentry's own SDK errors will
+        # surface in Railway logs — the request still succeeds.
+        logger.exception("tag_sentry_user failed")
     return user
