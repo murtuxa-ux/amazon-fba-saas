@@ -1,10 +1,19 @@
 """
 Ecom Era FBA SaaS v6.0 — Stripe Billing Module
 Handles subscriptions, checkout with 14-day free trial, portal, webhooks, and plan limits.
+
+Sprint Day 1 additions (§2.2):
+- STRIPE_DISABLED rollback flag honored on every endpoint.
+- Webhook idempotency via stripe_webhook_events table — redelivered events
+  return {"status": "duplicate"} rather than re-mutating org state.
+- Org status transitions on invoice.paid / invoice.payment_failed in addition
+  to subscription lifecycle events.
+- trial_ends_at populated from Stripe trial_end on checkout completion.
 """
 
+import json
 import stripe
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -13,7 +22,7 @@ from typing import Optional
 
 from config import settings
 from database import get_db
-from models import Organization, User, ActivityLog
+from models import Organization, User, ActivityLog, StripeWebhookEvent
 from auth import get_current_user, tenant_session, require_role
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -21,6 +30,20 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 # Initialize Stripe
 if settings.STRIPE_SECRET_KEY:
     stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def _ensure_stripe_enabled() -> None:
+    """503 if billing is rolled back via env flag or unconfigured.
+
+    STRIPE_DISABLED is the rollback lever from CONVENTIONS.md — operators
+    can flip it in Railway without redeploying to take billing offline
+    cleanly (no half-broken state where checkouts succeed but webhooks
+    can't authenticate).
+    """
+    if settings.STRIPE_DISABLED:
+        raise HTTPException(503, detail="Billing is currently disabled.")
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(503, detail="Stripe billing is not configured.")
 
 # ── Plan Configuration (matches landing page 4-tier pricing) ──────────────────
 PLANS = {
@@ -210,10 +233,7 @@ def create_checkout(
     db: Session = Depends(get_db),
 ):
     """Create a Stripe Checkout session for subscription with 14-day free trial."""
-    if not settings.STRIPE_SECRET_KEY:
-        raise HTTPException(
-            status_code=503, detail="Stripe billing is not configured."
-        )
+    _ensure_stripe_enabled()
 
     resolved = PLAN_ALIASES.get(data.plan, data.plan)
     plan = PLANS.get(resolved)
@@ -270,10 +290,7 @@ def create_portal(
     db: Session = Depends(get_db),
 ):
     """Create a Stripe Billing Portal session for managing subscription."""
-    if not settings.STRIPE_SECRET_KEY:
-        raise HTTPException(
-            status_code=503, detail="Stripe billing is not configured."
-        )
+    _ensure_stripe_enabled()
 
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     if not org.stripe_customer_id:
@@ -292,11 +309,10 @@ def create_portal(
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle Stripe webhook events."""
-    if not settings.STRIPE_SECRET_KEY or not settings.STRIPE_WEBHOOK_SECRET:
-        raise HTTPException(
-            status_code=503, detail="Stripe webhooks not configured."
-        )
+    """Handle Stripe webhook events with signature verification + idempotency."""
+    _ensure_stripe_enabled()
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(503, detail="Stripe webhook secret not configured.")
 
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
@@ -309,6 +325,31 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid payload.")
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid signature.")
+
+    # Idempotency: Stripe will redeliver an event if our 200 response is lost.
+    # The unique index on stripe_event_id makes this a single keyed lookup; if
+    # we've already processed this event, return early without re-mutating
+    # any org state.
+    event_id = event["id"]
+    existing = (
+        db.query(StripeWebhookEvent)
+        .filter(StripeWebhookEvent.stripe_event_id == event_id)
+        .first()
+    )
+    if existing:
+        return {"status": "duplicate", "event_id": event_id}
+
+    # Record the event BEFORE handler logic so a partial-failure replay still
+    # short-circuits as a duplicate. The unique index would also catch this on
+    # commit, but recording up front keeps the contract simple.
+    db.add(
+        StripeWebhookEvent(
+            stripe_event_id=event_id,
+            event_type=event["type"],
+            payload=json.dumps(event, default=str),
+        )
+    )
+    db.commit()
 
     # The webhook has no JWT'd user, so it can't go through tenant_session
     # at the dependency layer. Instead: derive org_id from the Stripe event
@@ -323,12 +364,13 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             db.execute(text("SET LOCAL ROLE app_role"))
             db.execute(text("SET LOCAL app.current_org_id = :oid"), {"oid": int(oid)})
 
-    # Handle subscription events
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        org_id = session.get("metadata", {}).get("org_id")
-        plan = session.get("metadata", {}).get("plan", "scout")
-        subscription_id = session.get("subscription")
+    event_type = event["type"]
+    data = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        org_id = data.get("metadata", {}).get("org_id")
+        plan = data.get("metadata", {}).get("plan", "scout")
+        subscription_id = data.get("subscription")
 
         if org_id:
             org = (
@@ -341,12 +383,24 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 org.plan = plan
                 org.stripe_subscription_id = subscription_id
                 if not org.stripe_customer_id:
-                    org.stripe_customer_id = session.get("customer")
+                    org.stripe_customer_id = data.get("customer")
+                org.status = "active"
+                # Capture trial_end on the subscription if present so we can
+                # surface "X days remaining" in-app without re-querying Stripe.
+                if subscription_id:
+                    try:
+                        sub = stripe.Subscription.retrieve(subscription_id)
+                        if sub.trial_end:
+                            org.trial_ends_at = datetime.fromtimestamp(
+                                sub.trial_end, tz=timezone.utc
+                            )
+                    except Exception:
+                        # Don't fail the webhook over a metadata enrichment.
+                        pass
                 db.commit()
 
-    elif event["type"] == "customer.subscription.updated":
-        sub = event["data"]["object"]
-        customer_id = sub.get("customer")
+    elif event_type == "invoice.paid":
+        customer_id = data.get("customer")
         org = (
             db.query(Organization)
             .filter(Organization.stripe_customer_id == customer_id)
@@ -354,9 +408,33 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         )
         if org:
             _prime_tenant_session(org.id)
-            org.stripe_subscription_id = sub.get("id")
+            org.status = "active"
+            db.commit()
+
+    elif event_type == "invoice.payment_failed":
+        customer_id = data.get("customer")
+        org = (
+            db.query(Organization)
+            .filter(Organization.stripe_customer_id == customer_id)
+            .first()
+        )
+        if org:
+            _prime_tenant_session(org.id)
+            org.status = "past_due"
+            db.commit()
+
+    elif event_type == "customer.subscription.updated":
+        customer_id = data.get("customer")
+        org = (
+            db.query(Organization)
+            .filter(Organization.stripe_customer_id == customer_id)
+            .first()
+        )
+        if org:
+            _prime_tenant_session(org.id)
+            org.stripe_subscription_id = data.get("id")
             # Update plan if price changed
-            items = sub.get("items", {}).get("data", [])
+            items = data.get("items", {}).get("data", [])
             if items:
                 price_id = items[0].get("price", {}).get("id")
                 for plan_key, plan_config in PLANS.items():
@@ -368,9 +446,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         break
             db.commit()
 
-    elif event["type"] == "customer.subscription.deleted":
-        sub = event["data"]["object"]
-        customer_id = sub.get("customer")
+    elif event_type == "customer.subscription.deleted":
+        customer_id = data.get("customer")
         org = (
             db.query(Organization)
             .filter(Organization.stripe_customer_id == customer_id)
@@ -380,13 +457,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             _prime_tenant_session(org.id)
             org.plan = "scout"
             org.stripe_subscription_id = ""
+            org.status = "canceled"
             db.commit()
 
-    elif event["type"] == "customer.subscription.trial_will_end":
-        # Trial ending in 3 days — could trigger email notification
-        sub = event["data"]["object"]
-        customer_id = sub.get("customer")
-        # Future: send trial-ending email notification
+    elif event_type == "customer.subscription.trial_will_end":
+        # Trial ending in 3 days — Stream A's email work hooks the
+        # trial_ending(user, days_remaining) template here in a follow-up.
         pass
 
-    return {"received": True}
+    return {"status": "processed", "event_type": event_type, "event_id": event_id}

@@ -98,6 +98,9 @@ def _truncate_after_test():
         "activity_logs", "scout_results", "weekly_reports",
         "suppliers", "products", "clients",
         "profit_analyses", "account_health_snapshots", "account_violations",
+        # stripe_webhook_events is system-wide (no org_id) but tests rely on
+        # a clean idempotency log across runs.
+        "stripe_webhook_events",
         "users", "organizations",
     ]
     with engine.connect() as conn:
