@@ -31,7 +31,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -169,6 +169,7 @@ class ResendRequest(BaseModel):
 @_signup_rate_limit()
 def signup(
     request: Request,
+    response: Response,
     body: SignupRequest,
     db: Session = Depends(get_db),
 ):
@@ -286,6 +287,7 @@ def verify_email(body: VerifyRequest, db: Session = Depends(get_db)):
 @_signup_rate_limit()
 def resend_verification(
     request: Request,
+    response: Response,
     body: ResendRequest,
     db: Session = Depends(get_db),
 ):
