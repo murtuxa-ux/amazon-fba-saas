@@ -1,6 +1,6 @@
 """Self-service signup + email verification (§2.3 of engineering brief). Stream A owns this.
 
-Three public endpoints, all rate-limited at 5/min/IP via auth_rate_limit:
+Three public endpoints, all rate-limited at 5/min/IP via _signup_rate_limit:
 
     POST /api/auth/signup
         Creates Organization + Owner User (email_verified=False), issues a
@@ -40,11 +40,29 @@ from auth import hash_password, create_access_token
 from config import settings
 from database import get_db
 from email_service import get_html_wrapper, send_email
-from rate_limiter import auth_rate_limit
+from rate_limiter import limiter
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _signup_rate_limit():
+    """5/min/IP for signup + resend, honoring RATE_LIMIT_DISABLED rollback flag.
+
+    Uses limiter.limit() directly with no key_func override. The Limiter's
+    default key_func (rate_limiter._get_user_or_ip) keys by user-or-ip and
+    is exercised on every request via default_limits — proven working by
+    the tenant-isolation suite. The wrapper auth_rate_limit() in
+    rate_limiter.py passes a custom lambda that crashes on slowapi 0.1.9's
+    `lim.key_func()` no-args call site (extension.py:499); skipping the
+    override avoids that path entirely until Stream B fixes the helper.
+    """
+    if settings.RATE_LIMIT_DISABLED:
+        def noop(func):
+            return func
+        return noop
+    return limiter.limit(f"{settings.RATE_LIMIT_AUTH_PER_IP_PER_MIN}/minute")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -148,7 +166,7 @@ class ResendRequest(BaseModel):
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 @router.post("/signup", response_model=SignupResponse)
-@auth_rate_limit()
+@_signup_rate_limit()
 def signup(
     request: Request,
     body: SignupRequest,
@@ -265,7 +283,7 @@ def verify_email(body: VerifyRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/resend-verification")
-@auth_rate_limit()
+@_signup_rate_limit()
 def resend_verification(
     request: Request,
     body: ResendRequest,

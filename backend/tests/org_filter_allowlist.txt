@@ -48,9 +48,9 @@ backend/main.py:412       # reason: /auth/login — User lookup by username (UNI
 backend/main.py:414       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
 backend/main.py:445       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
 backend/main.py:447       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
-backend/signup.py:161     # reason: /api/auth/signup — pre-existence check on email (UNIQUE) before the org is even created; same pattern as legacy /auth/signup
-backend/signup.py:240     # reason: /api/auth/verify — User lookup by id from a one-shot SHA-256-hashed token record; pre-auth, token+expiry+used_at are the authoritative scope
-backend/signup.py:276     # reason: /api/auth/resend-verification — User lookup by email (UNIQUE) for unauthenticated re-issuance of verification token
+backend/signup.py:179     # reason: /api/auth/signup — pre-existence check on email (UNIQUE) before the org is even created; same pattern as legacy /auth/signup
+backend/signup.py:258     # reason: /api/auth/verify — User lookup by id from a one-shot SHA-256-hashed token record; pre-auth, token+expiry+used_at are the authoritative scope
+backend/signup.py:294     # reason: /api/auth/resend-verification — User lookup by email (UNIQUE) for unauthenticated re-issuance of verification token
 backend/main.py:504       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
 backend/main.py:561       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
 backend/main.py:611       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
