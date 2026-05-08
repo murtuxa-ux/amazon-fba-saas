@@ -225,18 +225,22 @@ def regenerate_coach_feed(
         if existing:
             return existing
 
-    # Expire stale pending rows (yesterday's, or today's if force=True).
-    stale_filter = [
-        AiCoachAction.org_id == org.id,
-        AiCoachAction.status == "pending",
-    ]
+    # Expire stale pending rows. Inline the .filter chain (rather than
+    # list-unpacking *args) so test_query_lint can statically prove
+    # tenant scoping — the AST walker can't follow filter args through
+    # a list variable.
     if force:
-        stale_filter.append(AiCoachAction.created_at < now)
+        db.query(AiCoachAction).filter(
+            AiCoachAction.org_id == org.id,
+            AiCoachAction.status == "pending",
+            AiCoachAction.created_at < now,
+        ).update({"status": "expired"}, synchronize_session=False)
     else:
-        stale_filter.append(AiCoachAction.valid_until < now)
-    db.query(AiCoachAction).filter(*stale_filter).update(
-        {"status": "expired"}, synchronize_session=False
-    )
+        db.query(AiCoachAction).filter(
+            AiCoachAction.org_id == org.id,
+            AiCoachAction.status == "pending",
+            AiCoachAction.valid_until < now,
+        ).update({"status": "expired"}, synchronize_session=False)
     db.commit()
 
     raw: List[dict] = []
