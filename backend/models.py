@@ -3,7 +3,8 @@ Database Models — Ecom Era FBA SaaS v6.0
 SQLAlchemy ORM for PostgreSQL database schema
 """
 from sqlalchemy import (
-    Column, ForeignKey, String, Integer, Boolean, Text, Float, DateTime,
+    Column, ForeignKey, String, Integer, Boolean, Text, Float, DateTime, Date,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -567,6 +568,27 @@ class ClientMessage(Base):
 
     portal_user = relationship("ClientPortalUser", back_populates="messages")
     organization = relationship("Organization", back_populates="client_messages")
+
+
+# ── UsageCounter ─────────────────────────────────────────────────────────────
+# Tracks daily resource usage for tier-gated quotas (ai_scans, keepa_lookups).
+# One row per (org, resource, day) — incremented on every enforce_limit() call
+# for a daily resource. Cumulative resources (users, clients, asins) are not
+# tracked here; their counts are derived from the canonical row count.
+class UsageCounter(Base):
+    __tablename__ = "usage_counters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    resource = Column(String(50), nullable=False)
+    count = Column(Integer, nullable=False, default=0)
+    period_start_date = Column(Date, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "resource", "period_start_date", name="uq_usage_counter_org_resource_date"),
+    )
 
 
 # ── StripeWebhookEvent ───────────────────────────────────────────────────────

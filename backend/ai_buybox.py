@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user, require_role, tenant_session
 from database import get_db
-from models import BuyBoxAlert, BuyBoxHistory, BuyBoxTracker, User
+from models import BuyBoxAlert, BuyBoxHistory, BuyBoxTracker, Organization, User
+from tier_limits import enforce_limit
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +255,9 @@ async def add_asin_tracking(
         raise HTTPException(status_code=400, detail="Provide 'asin' or 'asins'.")
     if len(asins) > 100:
         raise HTTPException(status_code=400, detail="Maximum 100 ASINs per call.")
+
+    org = db.query(Organization).filter(Organization.id == current_user.org_id).first()
+    enforce_limit(db, org, "ai_scans", increment=len(asins))
 
     try:
         added = 0

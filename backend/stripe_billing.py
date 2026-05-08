@@ -24,6 +24,7 @@ from config import settings
 from database import get_db
 from models import Organization, User, ActivityLog, StripeWebhookEvent
 from auth import get_current_user, tenant_session, require_role
+from tier_limits import get_usage_summary
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -224,6 +225,22 @@ def billing_status(
             result["subscription_status"] = "unknown"
 
     return result
+
+
+@router.get("/usage")
+def get_usage(
+    user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+):
+    """Current tier usage for the org's billing dashboard.
+
+    Returns one entry per resource (users/clients/asins/ai_scans/keepa_lookups)
+    with `current`, `limit`, and `unlimited` fields. Reads only — no side effects.
+    """
+    org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    return {"plan": org.plan or "scout", "usage": get_usage_summary(db, org)}
 
 
 @router.post("/checkout")

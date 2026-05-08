@@ -96,7 +96,7 @@ def _truncate_after_test():
         "fbm_orders_items", "fbm_orders",
         "client_messages", "client_portal_users",
         "activity_logs", "scout_results", "weekly_reports",
-        "suppliers", "products", "clients",
+        "suppliers", "products", "clients", "usage_counters",
         "profit_analyses", "account_health_snapshots", "account_violations",
         # stripe_webhook_events is system-wide (no org_id) but tests rely on
         # a clean idempotency log across runs.
