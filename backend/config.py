@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     # Keepa monthly token budget — admin endpoint alerts at 80%.
     KEEPA_MONTHLY_TOKEN_BUDGET: int = 100000
 
+    # Self-service signup + email verification (§2.3). Stream A owns. Stays
+    # additive to the legacy /auth/signup which remains for back-compat.
+    # EMAIL_DISABLED is the rollback flag — see CONVENTIONS.md §Rollback playbook.
+    EMAIL_DISABLED: bool = False
+    EMAIL_FROM: str = "noreply@ecomera.us"
+    EMAIL_FROM_NAME: str = "Ecom Era"
+    APP_BASE_URL: str = "https://amazon-fba-saas.vercel.app"
+    TRIAL_DAYS: int = 14
+    EMAIL_VERIFICATION_TOKEN_HOURS: int = 24
+
     class Config:
         env_file = ".env"
         extra = "ignore"

@@ -6,12 +6,12 @@ export default function Signup() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const [formData, setFormData] = useState({
     orgName: '',
     fullName: '',
     email: '',
-    username: '',
     password: '',
     confirmPassword: '',
   });
@@ -43,20 +43,16 @@ export default function Signup() {
       setError('Please enter a valid email address');
       return false;
     }
-    if (!formData.username.trim()) {
-      setError('Username is required');
-      return false;
-    }
-    if (formData.username.length < 3) {
-      setError('Username must be at least 3 characters');
-      return false;
-    }
     if (!formData.password) {
       setError('Password is required');
       return false;
     }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (formData.password.length < 10) {
+      setError('Password must be at least 10 characters');
+      return false;
+    }
+    if (!/\d/.test(formData.password) || !/[A-Za-z]/.test(formData.password)) {
+      setError('Password must contain at least one letter and one digit');
       return false;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -77,7 +73,7 @@ export default function Signup() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_URL}/auth/signup`, {
+      const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +82,6 @@ export default function Signup() {
           org_name: formData.orgName,
           name: formData.fullName,
           email: formData.email,
-          username: formData.username,
           password: formData.password,
         }),
       });
@@ -94,24 +89,16 @@ export default function Signup() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Signup failed');
+        // Pydantic validation errors arrive as {detail: [{...}]}; Flatten the
+        // first one for the user. HTTPException(detail="...") is a string.
+        const detail = data.detail;
+        const message = Array.isArray(detail)
+          ? (detail[0]?.msg || 'Signup failed')
+          : (detail || 'Signup failed');
+        throw new Error(message);
       }
 
-      // Store token and user info (backend returns flat, not nested)
-      localStorage.setItem('ecomera_token', data.token);
-      localStorage.setItem('ecomera_user', JSON.stringify({
-        username: data.username,
-        name: data.name,
-        role: data.role,
-        email: data.email,
-        avatar: data.avatar,
-        org_id: data.org_id,
-        org_name: data.org_name,
-      }));
-
-      // Full page redirect to trigger AuthContext re-read
-      // Redirect to payment page to select plan and enter card
-      window.location.href = '/payment';
+      setSubmitted(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -122,6 +109,66 @@ export default function Signup() {
   const handleSignIn = () => {
     router.push('/login');
   };
+
+  if (submitted) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#0A0A0A',
+        color: '#FFFFFF',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}>
+        <div style={{ width: '100%', maxWidth: '420px', textAlign: 'center' }}>
+          <div style={{
+            fontSize: '28px',
+            fontWeight: 'bold',
+            color: '#FFD700',
+            letterSpacing: '2px',
+            marginBottom: '24px',
+          }}>
+            ECOM ERA
+          </div>
+          <div style={{
+            backgroundColor: '#111111',
+            border: '1px solid #1E1E1E',
+            borderRadius: '12px',
+            padding: '40px',
+          }}>
+            <h1 style={{ color: '#FFD700', fontSize: '24px', marginBottom: '16px' }}>
+              Check your email
+            </h1>
+            <p style={{ color: '#FFFFFF', fontSize: '14px', marginBottom: '12px' }}>
+              We sent a verification link to <strong>{formData.email}</strong>.
+            </p>
+            <p style={{ color: '#888', fontSize: '12px' }}>
+              The link expires in 24 hours. Don't see it? Check your spam folder.
+            </p>
+          </div>
+          <p style={{ marginTop: '24px', fontSize: '13px', color: '#888' }}>
+            Already verified?{' '}
+            <button
+              onClick={handleSignIn}
+              style={{
+                backgroundColor: 'transparent',
+                color: '#FFD700',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                padding: 0,
+              }}
+            >
+              Sign In
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -138,11 +185,7 @@ export default function Signup() {
         width: '100%',
         maxWidth: '420px',
       }}>
-        {/* Header */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '40px',
-        }}>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{
             fontSize: '28px',
             fontWeight: 'bold',
@@ -160,22 +203,17 @@ export default function Signup() {
           }}>
             Create Account
           </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#888',
-          }}>
-            Join Ecom Era and start scaling your FBA wholesale business
+          <p style={{ fontSize: '14px', color: '#888' }}>
+            Start your 14-day free trial
           </p>
         </div>
 
-        {/* Form Card */}
         <div style={{
           backgroundColor: '#111111',
           border: '1px solid #1E1E1E',
           borderRadius: '12px',
           padding: '40px',
         }}>
-          {/* Error Message */}
           {error && (
             <div style={{
               padding: '12px 16px',
@@ -191,229 +229,17 @@ export default function Signup() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Organization Name */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Organization Name
-              </label>
-              <input
-                type="text"
-                name="orgName"
-                value={formData.orgName}
-                onChange={handleInputChange}
-                placeholder="e.g., My Wholesale Co."
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
+            <Field label="Organization Name" name="orgName" placeholder="e.g., My Wholesale Co."
+                   value={formData.orgName} onChange={handleInputChange} />
+            <Field label="Full Name" name="fullName" placeholder="John Doe"
+                   value={formData.fullName} onChange={handleInputChange} />
+            <Field label="Email Address" name="email" type="email" placeholder="you@example.com"
+                   value={formData.email} onChange={handleInputChange} />
+            <Field label="Password" name="password" type="password" placeholder="at least 10 characters, letters + digits"
+                   value={formData.password} onChange={handleInputChange} />
+            <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="re-enter your password"
+                   value={formData.confirmPassword} onChange={handleInputChange} marginBottom="28px" />
 
-            {/* Full Name */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                placeholder="John Doe"
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
-
-            {/* Email */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="you@example.com"
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
-
-            {/* Username */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Username
-              </label>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                placeholder="johndoe"
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
-
-            {/* Password */}
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="at least 6 characters"
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
-
-            {/* Confirm Password */}
-            <div style={{ marginBottom: '28px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '6px',
-                color: '#FFFFFF',
-              }}>
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                placeholder="re-enter your password"
-                style={{
-                  width: '100%',
-                  padding: '11px',
-                  backgroundColor: '#0A0A0A',
-                  border: '1px solid #1E1E1E',
-                  borderRadius: '6px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#FFD700';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#1E1E1E';
-                }}
-              />
-            </div>
-
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -427,50 +253,25 @@ export default function Signup() {
                 cursor: loading ? 'not-allowed' : 'pointer',
                 fontSize: '14px',
                 fontWeight: '600',
-                transition: 'all 0.3s ease',
                 opacity: loading ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 8px 24px rgba(255, 215, 0, 0.3)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = 'none';
               }}
             >
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
-          {/* Divider */}
           <div style={{
             margin: '24px 0',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
           }}>
-            <div style={{
-              flex: 1,
-              height: '1px',
-              backgroundColor: '#1E1E1E',
-            }} />
+            <div style={{ flex: 1, height: '1px', backgroundColor: '#1E1E1E' }} />
             <span style={{ fontSize: '12px', color: '#666' }}>OR</span>
-            <div style={{
-              flex: 1,
-              height: '1px',
-              backgroundColor: '#1E1E1E',
-            }} />
+            <div style={{ flex: 1, height: '1px', backgroundColor: '#1E1E1E' }} />
           </div>
 
-          {/* Sign In Link */}
-          <p style={{
-            textAlign: 'center',
-            fontSize: '13px',
-            color: '#888',
-          }}>
+          <p style={{ textAlign: 'center', fontSize: '13px', color: '#888' }}>
             Already have an account?{' '}
             <button
               onClick={handleSignIn}
@@ -481,15 +282,7 @@ export default function Signup() {
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: '600',
-                textDecoration: 'none',
                 padding: 0,
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.textDecoration = 'underline';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.textDecoration = 'none';
               }}
             >
               Sign In
@@ -497,7 +290,6 @@ export default function Signup() {
           </p>
         </div>
 
-        {/* Footer */}
         <p style={{
           textAlign: 'center',
           fontSize: '11px',
@@ -507,6 +299,41 @@ export default function Signup() {
           By signing up, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
+    </div>
+  );
+}
+
+function Field({ label, name, type = 'text', placeholder, value, onChange, marginBottom = '18px' }) {
+  return (
+    <div style={{ marginBottom }}>
+      <label style={{
+        display: 'block',
+        fontSize: '13px',
+        fontWeight: '600',
+        marginBottom: '6px',
+        color: '#FFFFFF',
+      }}>
+        {label}
+      </label>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: '11px',
+          backgroundColor: '#0A0A0A',
+          border: '1px solid #1E1E1E',
+          borderRadius: '6px',
+          color: '#FFFFFF',
+          fontSize: '13px',
+          boxSizing: 'border-box',
+        }}
+        onFocus={(e) => { e.target.style.borderColor = '#FFD700'; }}
+        onBlur={(e) => { e.target.style.borderColor = '#1E1E1E'; }}
+      />
     </div>
   );
 }
