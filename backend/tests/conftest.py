@@ -98,6 +98,11 @@ def _truncate_after_test():
         "activity_logs", "scout_results", "weekly_reports",
         "suppliers", "products", "clients", "usage_counters",
         "profit_analyses", "account_health_snapshots", "account_violations",
+        # Sprint Day 2 tier-gating + Keepa-cost tables. usage_counters is
+        # owned by Stream A (tier_limits); org_keepa_usage by Stream B
+        # (keepa_service). Both tests write rows that leak across runs
+        # without explicit truncation.
+        "usage_counters", "org_keepa_usage",
         # stripe_webhook_events is system-wide (no org_id) but tests rely on
         # a clean idempotency log across runs.
         "stripe_webhook_events",
