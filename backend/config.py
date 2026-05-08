@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     STRIPE_GROWTH_PRICE_ID: Optional[str] = None
     STRIPE_ENTERPRISE_PRICE_ID: Optional[str] = None
 
+    # Per-plan price IDs the stripe_billing.PLANS dict already references via
+    # getattr. Declared here so Pydantic's `extra="ignore"` actually loads the
+    # values from Railway env. Empty defaults so a missing env var surfaces as
+    # 400 "Stripe price not configured" instead of silently falling through.
+    STRIPE_SCOUT_PRICE_ID: Optional[str] = None
+    STRIPE_SCOUT_ANNUAL_PRICE_ID: Optional[str] = None
+    STRIPE_GROWTH_ANNUAL_PRICE_ID: Optional[str] = None
+    STRIPE_PRO_PRICE_ID: Optional[str] = None
+    STRIPE_PRO_ANNUAL_PRICE_ID: Optional[str] = None
+    STRIPE_ENTERPRISE_ANNUAL_PRICE_ID: Optional[str] = None
+
+    # Rollback flag — when true, billing endpoints return 503 cleanly.
+    # See CONVENTIONS.md §Rollback playbook.
+    STRIPE_DISABLED: bool = False
+
     # App
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,https://amazon-fba-saas.vercel.app"

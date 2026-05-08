@@ -20,6 +20,11 @@ class Organization(Base):
     keepa_api_key = Column(String(255), default="")
     stripe_customer_id = Column(String(255), default="")
     stripe_subscription_id = Column(String(255), default="")
+    # Subscription lifecycle state set by Stripe webhooks.
+    # active = paid + within period; trialing = inside Stripe trial window;
+    # past_due = invoice.payment_failed; canceled = customer.subscription.deleted.
+    status = Column(String(20), default="trialing", nullable=False)
+    trial_ends_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -562,3 +567,17 @@ class ClientMessage(Base):
 
     portal_user = relationship("ClientPortalUser", back_populates="messages")
     organization = relationship("Organization", back_populates="client_messages")
+
+
+# ── StripeWebhookEvent ───────────────────────────────────────────────────────
+# System-wide table (no org_id, no RLS): Stripe webhooks arrive pre-auth and
+# are signature-verified, not tenant-scoped. This is purely an idempotency log
+# so a redelivered event is a no-op rather than a duplicate state mutation.
+class StripeWebhookEvent(Base):
+    __tablename__ = "stripe_webhook_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stripe_event_id = Column(String(255), unique=True, nullable=False, index=True)
+    event_type = Column(String(100), nullable=False)
+    payload = Column(Text, nullable=False)
+    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
