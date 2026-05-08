@@ -13,13 +13,27 @@ Keepa CSV Type indices (stats arrays use these):
   16 = Review count
   18 = Buy Box price (cents)
 -1 means "no data available" in Keepa.
+
+Sprint Day 2 (§2.5): the org-scoped path `get_keepa_data_for_org()` is
+the central entry point for AI modules — it tier-gates via
+tier_limits.enforce_limit('keepa_lookups') and records real
+tokens_consumed into org_keepa_usage so admins can monitor monthly burn.
 """
 
+import logging
+import os
+from datetime import date
+from typing import Optional, Tuple
+
 import httpx
-from typing import Optional
+from fastapi import HTTPException
+from sqlalchemy import extract, func
+from sqlalchemy.orm import Session
 
 
 KEEPA_API_URL = "https://api.keepa.com"
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_idx(arr, idx, default=None):
@@ -41,6 +55,34 @@ def _cents_to_dollars(val):
     return round(val / 100, 2)
 
 
+def _fetch_raw_keepa(asin: str, api_key: str, domain: int = 1) -> Tuple[dict, int]:
+    """Single Keepa /product call. Returns (raw_response_json, tokens_consumed).
+
+    Extracted from get_keepa_data so org-scoped callers can record real
+    token usage without re-running the request. Keepa surfaces
+    `tokensConsumed` in the response; we fall back to a conservative 1
+    when absent so usage never silently records zero.
+    """
+    params = {
+        "key": api_key,
+        "domain": domain,
+        "asin": asin,
+        "stats": 90,
+        "offers": 20,
+    }
+    try:
+        resp = httpx.get(f"{KEEPA_API_URL}/product", params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+    except httpx.HTTPStatusError as e:
+        raise Exception(f"Keepa API error ({e.response.status_code}): {e.response.text}")
+    except httpx.RequestError as e:
+        raise Exception(f"Keepa API connection error: {str(e)}")
+
+    tokens = data.get("tokensConsumed") or data.get("tokens_consumed") or 1
+    return data, int(tokens)
+
+
 def get_keepa_data(asin: str, api_key: str, domain: int = 1) -> dict:
     """
     Fetch product data from Keepa for a single ASIN.
@@ -54,23 +96,12 @@ def get_keepa_data(asin: str, api_key: str, domain: int = 1) -> dict:
         dict with product info: title, brand, category, bsr, monthly_sales,
         current_price, price_volatility_pct, fba_sellers, etc.
     """
-    params = {
-        "key": api_key,
-        "domain": domain,
-        "asin": asin,
-        "stats": 90,       # 90-day stats
-        "offers": 20,       # FBA offer data
-    }
+    data, _tokens = _fetch_raw_keepa(asin, api_key, domain)
+    return _parse_keepa_product(data, asin)
 
-    try:
-        resp = httpx.get(f"{KEEPA_API_URL}/product", params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except httpx.HTTPStatusError as e:
-        raise Exception(f"Keepa API error ({e.response.status_code}): {e.response.text}")
-    except httpx.RequestError as e:
-        raise Exception(f"Keepa API connection error: {str(e)}")
 
+def _parse_keepa_product(data: dict, asin: str) -> dict:
+    """Parse a Keepa /product response into the canonical product dict."""
     products = data.get("products", [])
     if not products:
         raise Exception(f"No Keepa data found for ASIN {asin}")
@@ -240,3 +271,112 @@ def _estimate_sales_from_bsr(bsr: int) -> int:
     if bsr <= 100000:
         return 20
     return 5
+
+
+# ── Org-scoped central guard (§2.5) ─────────────────────────────────────────
+# Every Keepa call originating from a tenant request must flow through
+# get_keepa_data_for_org(): it tier-gates BEFORE spending tokens, then
+# records real Keepa-reported `tokensConsumed` into org_keepa_usage so the
+# /api/system/keepa-budget admin endpoint can show monthly burn.
+def _resolve_api_key(org, api_key: Optional[str]) -> str:
+    """Pick api_key in precedence: explicit arg > org-attached key > env."""
+    candidate = api_key or getattr(org, "keepa_api_key", None) or os.environ.get("KEEPA_API_KEY")
+    if not candidate:
+        raise HTTPException(
+            status_code=400,
+            detail="Keepa API key not configured.",
+        )
+    return candidate
+
+
+def _record_org_keepa_usage(
+    db: Session,
+    org_id: int,
+    tokens_consumed: int,
+    request_count: int = 1,
+) -> None:
+    """Upsert today's row in org_keepa_usage for `org_id`."""
+    from models import OrgKeepaUsage
+
+    today = date.today()
+    usage = (
+        db.query(OrgKeepaUsage)
+        .filter(
+            OrgKeepaUsage.org_id == org_id,
+            OrgKeepaUsage.date == today,
+        )
+        .first()
+    )
+    if usage:
+        usage.tokens_consumed = (usage.tokens_consumed or 0) + tokens_consumed
+        usage.request_count = (usage.request_count or 0) + request_count
+    else:
+        usage = OrgKeepaUsage(
+            org_id=org_id,
+            date=today,
+            tokens_consumed=tokens_consumed,
+            request_count=request_count,
+        )
+        db.add(usage)
+    db.commit()
+
+
+def get_keepa_data_for_org(
+    db: Session,
+    org,
+    asin: str,
+    api_key: Optional[str] = None,
+    domain: int = 1,
+) -> dict:
+    """Tier-gated, usage-recorded Keepa lookup for org-context callers.
+
+    Use this from every AI module that touches Keepa. It enforces the
+    daily `keepa_lookups` quota via tier_limits.enforce_limit (raises 402
+    on over-limit) and records the real `tokensConsumed` reported by
+    Keepa so the central monthly budget guard can alert at 80%.
+    """
+    # Tier gate FIRST — counts the lookup against the daily quota even
+    # if the request later fails. If we gated AFTER the request, a flood
+    # of failing lookups would burn tokens past the cap before tripping it.
+    from tier_limits import enforce_limit
+    enforce_limit(db, org, "keepa_lookups")
+
+    resolved_key = _resolve_api_key(org, api_key)
+    try:
+        raw, tokens = _fetch_raw_keepa(asin, resolved_key, domain)
+    except Exception as exc:
+        logger.error("Keepa request failed for ASIN %s: %s", asin, exc)
+        raise
+
+    _record_org_keepa_usage(db, org.id, tokens_consumed=tokens)
+    return _parse_keepa_product(raw, asin)
+
+
+def get_monthly_keepa_burn(db: Session, monthly_budget: int) -> dict:
+    """Aggregate token burn across all orgs for the current calendar month.
+
+    Used by the admin /api/system/keepa-budget endpoint. Returns the
+    month-to-date total, the configured monthly budget, and the percent
+    used so the dashboard can flag at 80%.
+
+    NOTE: This is a system-wide aggregation, intentionally cross-org —
+    it powers Owner+Admin reporting only. Callers must role-gate.
+    """
+    from models import OrgKeepaUsage
+
+    today = date.today()
+    total = (
+        db.query(func.coalesce(func.sum(OrgKeepaUsage.tokens_consumed), 0))
+        .filter(
+            extract("year", OrgKeepaUsage.date) == today.year,
+            extract("month", OrgKeepaUsage.date) == today.month,
+        )
+        .scalar()
+        or 0
+    )
+    pct = round((total / monthly_budget) * 100, 1) if monthly_budget else 0.0
+    return {
+        "month_to_date_tokens": int(total),
+        "monthly_budget": monthly_budget,
+        "percent_used": pct,
+    }

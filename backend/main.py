@@ -25,7 +25,7 @@ from auth import (
 )
 from ai_engine import calculate_score, get_decision, get_risk_level
 from fba_scoring import compute_fba_score, compute_profit
-from keepa_service import get_keepa_data
+from keepa_service import get_keepa_data_for_org
 from stripe_billing import router as billing_router
 from plan_middleware import enforce_client_limit, enforce_scout_limit
 from tier_limits import enforce_limit
@@ -103,6 +103,11 @@ for _mod_name, _router_name, _key in [
 
 # ── App Setup ───────────────────────────────────────────────────────────────────
 app = FastAPI(title="Ecom Era FBA Wholesale SaaS", version="7.0")
+
+# Rate limiting (§2.5) — wires limiter, exception handler, SlowAPIMiddleware.
+# No-op when RATE_LIMIT_DISABLED=true (rollback flag, see CONVENTIONS.md).
+from rate_limiter import init_rate_limiter, auth_rate_limit
+init_rate_limiter(app)
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 # Always ensure the Vercel frontend is allowed
@@ -395,7 +400,8 @@ def home():
 
 # ── Auth Routes ─────────────────────────────────────────────────────────────────
 @app.post("/auth/login")
-def login(data: LoginInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def login(request: Request, data: LoginInput, db: Session = Depends(get_db)):
     # Accept either username or email field for login
     identifier = (data.username or data.email or "").strip().lower()
     if not identifier:
@@ -489,7 +495,8 @@ FRONTEND_URL = "https://amazon-fba-saas.vercel.app"
 
 
 @app.post("/auth/forgot-password")
-def forgot_password(data: ForgotPasswordInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = Depends(get_db)):
     """Generate a password reset token and send reset email"""
     email = data.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -532,7 +539,8 @@ def forgot_password(data: ForgotPasswordInput, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/reset-password")
-def reset_password(data: ResetPasswordInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def reset_password(request: Request, data: ResetPasswordInput, db: Session = Depends(get_db)):
     """Reset password using a valid reset token"""
     from auth import decode_token
 
@@ -948,7 +956,11 @@ def analyze_product(
 
     if api_key:
         try:
-            keepa = get_keepa_data(data.asin, api_key)
+            keepa = get_keepa_data_for_org(db, org, data.asin, api_key)
+        except HTTPException:
+            # 402 keepa_lookups quota exceeded must propagate, not be
+            # silenced into a "fallback" mock — the user needs the upgrade prompt.
+            raise
         except Exception:
             keepa = {"monthly_sales": 500, "competition": 8, "price_stability": 0.75, "buybox_pct": 85, "source": "fallback"}
     else:
@@ -1154,7 +1166,10 @@ def scout_lookup(
         )
 
     try:
-        keepa = get_keepa_data(data.asin.strip().upper(), api_key, domain=data.domain or 1)
+        keepa = get_keepa_data_for_org(db, org, data.asin.strip().upper(), api_key, domain=data.domain or 1)
+    except HTTPException:
+        # tier 402 / 400 from get_keepa_data_for_org should pass through unmodified.
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Keepa lookup failed: {str(e)}")
 
@@ -1290,7 +1305,7 @@ def scout_bulk(
     error_details = []
     for asin in unique_asins:
         try:
-            keepa = get_keepa_data(asin, api_key, domain=data.domain or 1)
+            keepa = get_keepa_data_for_org(db, org, asin, api_key, domain=data.domain or 1)
             scoring = compute_fba_score(
                 bsr=keepa["bsr"], monthly_sales=keepa["monthly_sales"],
                 price_volatility_pct=keepa["price_volatility_pct"],
@@ -1321,6 +1336,11 @@ def scout_bulk(
             db.add(scout_entry)
             result = {**keepa, **scoring, "amazon_url": f"https://www.amazon.com/dp/{asin}", "profit_calc": profit}
             results.append(result)
+        except HTTPException:
+            # tier 402 (keepa_lookups quota) halts the whole bulk batch
+            # so the user gets one clear upgrade prompt instead of 50
+            # per-ASIN error rows.
+            raise
         except Exception as e:
             error_details.append({"asin": asin, "error": str(e)})
 

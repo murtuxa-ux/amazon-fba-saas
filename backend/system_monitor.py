@@ -324,3 +324,25 @@ async def get_diagnostics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not retrieve diagnostics"
         )
+
+
+# ── Keepa monthly budget burn (§2.5) ────────────────────────────────────────
+# Surfaces month-to-date Keepa token usage aggregated across ALL orgs against
+# the configured KEEPA_MONTHLY_TOKEN_BUDGET. Owner/Admin only — this is the
+# operator-facing dashboard for cost protection.
+@router.get("/keepa-budget")
+async def keepa_budget(
+    current_user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Owner/Admin-only Keepa monthly burn report. Aggregates across all orgs."""
+    if current_user.role not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Admin or owner role required")
+
+    from keepa_service import get_monthly_keepa_burn
+    from config import settings
+
+    summary = get_monthly_keepa_burn(db, settings.KEEPA_MONTHLY_TOKEN_BUDGET)
+    summary["alert_threshold_pct"] = 80.0
+    summary["alerting"] = summary["percent_used"] >= 80.0
+    return summary

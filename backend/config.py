@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
     LOG_LEVEL: str = "INFO"
 
+    # Rate limiting (§2.5). Stream B owns. RATE_LIMIT_DISABLED is the
+    # rollback flag — see CONVENTIONS.md §Rollback playbook.
+    RATE_LIMIT_DISABLED: bool = False
+    RATE_LIMIT_PER_USER_PER_MIN: int = 60
+    RATE_LIMIT_PER_IP_PER_MIN: int = 200
+    RATE_LIMIT_AUTH_PER_IP_PER_MIN: int = 5
+    RATE_LIMIT_PER_ORG_PER_MIN: int = 1000
+
+    # Keepa monthly token budget — admin endpoint alerts at 80%.
+    KEEPA_MONTHLY_TOKEN_BUDGET: int = 100000
+
     class Config:
         env_file = ".env"
         extra = "ignore"

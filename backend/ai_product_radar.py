@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user, get_org_scoped_query, require_role, tenant_session
 from config import settings
 from database import get_db
-from keepa_service import get_keepa_data
+from keepa_service import get_keepa_data_for_org
 from models import ActivityLog, Organization, Product, ScoutResult, User
 from tier_limits import enforce_limit
 
@@ -35,8 +35,10 @@ router = APIRouter(prefix="/product-radar", tags=["AI Product Radar"])
 
 
 # Estimated Keepa tokens per single-ASIN call (stats=90 + offers=20).
-# Used for the pre-flight budget guard and for ActivityLog cost tracking —
-# `keepa_service.get_keepa_data` does not currently surface real `tokensConsumed`.
+# Used for the pre-flight budget guard ONLY: real per-call `tokensConsumed`
+# is now recorded centrally by keepa_service.get_keepa_data_for_org() into
+# org_keepa_usage, but the budget check needs an a-priori estimate before
+# any call is made.
 KEEPA_TOKENS_PER_ASIN_ESTIMATE = 6
 LIVE_SCAN_MAX_ASINS = 50
 
@@ -316,7 +318,7 @@ async def live_scan(
 
     for asin in unique_asins:
         try:
-            keepa = get_keepa_data(asin, api_key, domain=domain)
+            keepa = get_keepa_data_for_org(db, org, asin, api_key, domain=domain)
             current_price = float(keepa.get("current_price", 0) or 0)
             scoring = _score_opportunity(
                 monthly_sales=keepa.get("monthly_sales", 0),
@@ -370,6 +372,11 @@ async def live_scan(
                 "amazon_url": f"https://www.amazon.com/dp/{asin}",
                 **scoring,
             })
+        except HTTPException:
+            # Tier 402 (keepa_lookups quota) and other intentional HTTP
+            # errors should halt the whole batch, not be silenced into
+            # per-ASIN errors. The frontend renders these as upgrade prompts.
+            raise
         except Exception as e:
             errors.append({"asin": asin, "error": str(e)})
 
