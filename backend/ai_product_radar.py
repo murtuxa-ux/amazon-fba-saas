@@ -29,6 +29,7 @@ from config import settings
 from database import get_db
 from keepa_service import get_keepa_data
 from models import ActivityLog, Organization, Product, ScoutResult, User
+from tier_limits import enforce_limit
 
 router = APIRouter(prefix="/product-radar", tags=["AI Product Radar"])
 
@@ -300,6 +301,8 @@ async def live_scan(
         )
 
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    # Each ASIN in a live-scan counts as one ai_scan against the tier quota.
+    enforce_limit(db, org, "ai_scans", increment=len(unique_asins))
     api_key = getattr(org, "keepa_api_key", None) if org else None
     if not api_key:
         raise HTTPException(status_code=400, detail="Keepa API key not configured.")

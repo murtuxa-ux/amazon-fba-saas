@@ -28,6 +28,7 @@ from fba_scoring import compute_fba_score, compute_profit
 from keepa_service import get_keepa_data
 from stripe_billing import router as billing_router
 from plan_middleware import enforce_client_limit, enforce_scout_limit
+from tier_limits import enforce_limit
 
 # Observability (§2.8) — Sentry SDK init + structlog config must run BEFORE
 # `app = FastAPI(...)` so the FastApiIntegration patches in cleanly. The
@@ -599,6 +600,8 @@ def add_user(
 ):
     if db.query(User).filter(User.username == data.username.strip().lower()).first():
         raise HTTPException(status_code=400, detail="Username already exists.")
+    org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    enforce_limit(db, org, "users")
     new_user = User(
         org_id=user.org_id,
         username=data.username.strip().lower(),
@@ -729,6 +732,8 @@ def add_client(
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
+    org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    enforce_limit(db, org, "clients")
     client = Client(
         org_id=user.org_id,
         name=data.name,
@@ -937,6 +942,8 @@ def analyze_product(
     db: Session = Depends(get_db),
 ):
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    # /analyze persists a Product (one ASIN). Counts toward the asins quota.
+    enforce_limit(db, org, "asins")
     api_key = getattr(org, "keepa_api_key", None) if org else None
 
     if api_key:
@@ -1173,6 +1180,8 @@ def scout_product(
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
+    org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    enforce_limit(db, org, "ai_scans")
     scoring = compute_fba_score(
         bsr=data.bsr, monthly_sales=data.monthly_sales,
         price_volatility_pct=data.price_volatility_pct,
@@ -1271,6 +1280,8 @@ def scout_bulk(
         raise HTTPException(status_code=400, detail="Maximum 50 ASINs per request.")
 
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    # Each ASIN in the bulk batch counts as one ai_scan.
+    enforce_limit(db, org, "ai_scans", increment=len(unique_asins))
     api_key = (data.keepa_api_key or "").strip() or (getattr(org, "keepa_api_key", None) if org else None)
     if not api_key:
         raise HTTPException(status_code=400, detail="Keepa API key not configured.")
