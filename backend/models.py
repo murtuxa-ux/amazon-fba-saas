@@ -68,6 +68,12 @@ class User(Base):
     # 0006 migration backfills email_verified=True for those rows.
     email_verified = Column(Boolean, default=False, nullable=False)
     email_verified_at = Column(DateTime, nullable=True)
+    # Post-signup onboarding wizard (§2.3): tracks 4-step progress.
+    # Legacy users (created before 0007) backfill to onboarding_completed=True
+    # so the wizard never re-appears for established accounts.
+    onboarding_completed = Column(Boolean, nullable=False, default=False)
+    onboarding_step = Column(Integer, nullable=False, default=1)
+    onboarding_completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 
@@ -661,6 +667,37 @@ class EmailVerificationToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="email_verification_tokens")
+
+
+# ── TeamInvite (§2.3 — onboarding wizard Step 3) ────────────────────────────
+# Owner/Admin uses POST /api/onboarding/invite to send a teammate an email
+# with a one-shot token (SHA-256 hashed, plaintext never stored). The
+# recipient hits POST /api/onboarding/accept-invite/{token} pre-auth — the
+# response carries the invite metadata (email, role, org) so a frontend
+# signup form can pre-fill. tier_limits.enforce_limit("users") gates the
+# create path so Scout (3 users) can't issue a 4th invite. RLS policy on
+# the table is tenant-isolated by org_id (Tier A pattern).
+class TeamInvite(Base):
+    __tablename__ = "team_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    inviter_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    email = Column(String(255), nullable=False, index=True)
+    role = Column(String(50), nullable=False, default="manager")
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 # ── AI Coach (§2.6 #4) ──────────────────────────────────────────────────────
