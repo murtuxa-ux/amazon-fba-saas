@@ -149,7 +149,7 @@ class ResendRequest(BaseModel):
 
 @router.post("/signup", response_model=SignupResponse)
 @auth_rate_limit()
-async def signup(
+def signup(
     request: Request,
     body: SignupRequest,
     db: Session = Depends(get_db),
@@ -210,7 +210,7 @@ async def signup(
 
 
 @router.post("/verify", response_model=VerifyResponse)
-async def verify_email(body: VerifyRequest, db: Session = Depends(get_db)):
+def verify_email(body: VerifyRequest, db: Session = Depends(get_db)):
     """Mark email verified, return JWT + user fields for auto-login.
 
     Response shape mirrors /auth/login (flat fields) so the frontend can
@@ -266,7 +266,7 @@ async def verify_email(body: VerifyRequest, db: Session = Depends(get_db)):
 
 @router.post("/resend-verification")
 @auth_rate_limit()
-async def resend_verification(
+def resend_verification(
     request: Request,
     body: ResendRequest,
     db: Session = Depends(get_db),

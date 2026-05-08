@@ -61,7 +61,7 @@ def test_signup_creates_org_and_owner_user(client, db_session):
         "/api/auth/signup",
         json={
             "org_name": "Acme Corp",
-            "email": "founder@acme.test",
+            "email": "founder@acme-corp.io",
             "password": "AcmePass2026",
             "name": "Jane Founder",
         },
@@ -82,7 +82,7 @@ def test_signup_creates_org_and_owner_user(client, db_session):
 
     user = (
         db_session.query(models.User)
-        .filter_by(email="founder@acme.test")
+        .filter_by(email="founder@acme-corp.io")
         .first()
     )
     assert user is not None
@@ -105,13 +105,13 @@ def test_signup_duplicate_email_returns_generic_message(client, db_session):
     attacker can't tell whether an email is registered."""
     payload_a = {
         "org_name": "First Co",
-        "email": "dup@test.example",
+        "email": "dup@signup-test.io",
         "password": "FirstPass123",
         "name": "First User",
     }
     payload_b = {
         "org_name": "Second Co",
-        "email": "dup@test.example",
+        "email": "dup@signup-test.io",
         "password": "SecondPass123",
         "name": "Second User",
     }
@@ -134,7 +134,7 @@ def test_signup_rejects_weak_password(client):
         "/api/auth/signup",
         json={
             "org_name": "Weak Pass Co",
-            "email": "weak@test.example",
+            "email": "weak@signup-test.io",
             "password": "abcdefghij",  # no digit
             "name": "Weak User",
         },
@@ -188,7 +188,7 @@ def test_verify_with_valid_token_returns_jwt(client, db_session):
     plaintext = "valid-token-abcdef123456"
     user, _ = _make_user_with_token(
         db_session,
-        email="verify@test.example",
+        email="verify@signup-test.io",
         plaintext=plaintext,
         expires_at=datetime.utcnow() + timedelta(hours=24),
     )
@@ -198,7 +198,7 @@ def test_verify_with_valid_token_returns_jwt(client, db_session):
     body = resp.json()
     assert body["success"] is True
     assert body["token"]  # JWT string
-    assert body["email"] == "verify@test.example"
+    assert body["email"] == "verify@signup-test.io"
     assert body["role"] == "owner"
     assert body["org_id"] == user.org_id
 
@@ -220,7 +220,7 @@ def test_verify_with_expired_token_returns_400(client, db_session):
     plaintext = "expired-token-abc"
     _make_user_with_token(
         db_session,
-        email="expired@test.example",
+        email="expired@signup-test.io",
         plaintext=plaintext,
         expires_at=datetime.utcnow() - timedelta(hours=1),
     )
@@ -234,7 +234,7 @@ def test_verify_with_already_used_token_returns_400(client, db_session):
     plaintext = "already-used-token"
     _, record = _make_user_with_token(
         db_session,
-        email="used@test.example",
+        email="used@signup-test.io",
         plaintext=plaintext,
         expires_at=datetime.utcnow() + timedelta(hours=1),
     )
@@ -267,14 +267,14 @@ def test_resend_verification_invalidates_prior_tokens(client, db_session):
         "/api/auth/signup",
         json={
             "org_name": "Resend Co",
-            "email": "resend@test.example",
+            "email": "resend@signup-test.io",
             "password": "ResendPass123",
             "name": "Resend User",
         },
     )
 
     user = (
-        db_session.query(models.User).filter_by(email="resend@test.example").first()
+        db_session.query(models.User).filter_by(email="resend@signup-test.io").first()
     )
     assert user is not None
     first = (
@@ -286,7 +286,7 @@ def test_resend_verification_invalidates_prior_tokens(client, db_session):
 
     resp = client.post(
         "/api/auth/resend-verification",
-        json={"email": "resend@test.example"},
+        json={"email": "resend@signup-test.io"},
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["success"] is True
@@ -309,7 +309,7 @@ def test_resend_for_already_verified_user_is_noop(client, db_session):
     plaintext = "verified-user-token"
     user, _ = _make_user_with_token(
         db_session,
-        email="alreadyverified@test.example",
+        email="alreadyverified@signup-test.io",
         plaintext=plaintext,
         expires_at=datetime.utcnow() + timedelta(hours=1),
     )
@@ -325,7 +325,7 @@ def test_resend_for_already_verified_user_is_noop(client, db_session):
 
     resp = client.post(
         "/api/auth/resend-verification",
-        json={"email": "alreadyverified@test.example"},
+        json={"email": "alreadyverified@signup-test.io"},
     )
     assert resp.status_code == 200
 
@@ -341,7 +341,7 @@ def test_resend_for_unknown_email_returns_generic(client):
     """Unknown email — same generic 200 — anti-enumeration."""
     resp = client.post(
         "/api/auth/resend-verification",
-        json={"email": "ghost@test.example"},
+        json={"email": "ghost@signup-test.io"},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -357,7 +357,7 @@ def test_signup_email_disabled_does_not_break_signup(client, db_session, monkeyp
         "/api/auth/signup",
         json={
             "org_name": "Email Off Co",
-            "email": "emailoff@test.example",
+            "email": "emailoff@signup-test.io",
             "password": "EmailOff123",
             "name": "Email Off",
         },
@@ -366,7 +366,7 @@ def test_signup_email_disabled_does_not_break_signup(client, db_session, monkeyp
 
     import models
     user = (
-        db_session.query(models.User).filter_by(email="emailoff@test.example").first()
+        db_session.query(models.User).filter_by(email="emailoff@signup-test.io").first()
     )
     assert user is not None
     # Token was still created (the email side just didn't go out).
