@@ -44,14 +44,14 @@
 # those uniqueness invariants in the table schema.
 
 backend/auth.py:103       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
-backend/main.py:391       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
-backend/main.py:393       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
-backend/main.py:424       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
-backend/main.py:426       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
-backend/main.py:482       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
-backend/main.py:538       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
-backend/main.py:588       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
-backend/main.py:202       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
+backend/main.py:403       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
+backend/main.py:405       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
+backend/main.py:436       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
+backend/main.py:438       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
+backend/main.py:494       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
+backend/main.py:550       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
+backend/main.py:600       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
+backend/main.py:214       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
 backend/ppc_action_plan.py:962  # reason: custom JWT decode route — fetches User by uid from token before any tenant_session priming, identical to get_current_user pattern
 backend/websocket_manager.py:221  # reason: WS handshake — fetches User by id from JWT subprotocol token before connection is admitted; runs in WS lifecycle pre-tenant_session, mirrors get_current_user
 
