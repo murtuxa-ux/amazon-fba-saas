@@ -29,6 +29,13 @@ from keepa_service import get_keepa_data
 from stripe_billing import router as billing_router
 from plan_middleware import enforce_client_limit, enforce_scout_limit
 
+# Observability (§2.8) — Sentry SDK init + structlog config must run BEFORE
+# `app = FastAPI(...)` so the FastApiIntegration patches in cleanly. The
+# RequestIDMiddleware is added below after app creation.
+from observability import init_sentry, setup_structlog, RequestIDMiddleware
+init_sentry()
+setup_structlog()
+
 # Sprint Day 0 stubs — populated incrementally by Stream A and Stream B.
 # Empty routers are safe to register: they expose no routes until the
 # owning stream lands its feature PR. See CONVENTIONS.md for ownership.
@@ -107,6 +114,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# RequestIDMiddleware runs on every request (no auth required). Adds
+# X-Request-ID to the response and binds the id to a contextvar so logs
+# and Sentry events correlate across the request lifecycle.
+app.add_middleware(RequestIDMiddleware)
 
 
 # ── Global exception handler ────────────────────────────────────────────────
