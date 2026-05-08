@@ -1,8 +1,12 @@
 """onboarding progress on users + team_invites table
 
-Revision ID: 0007_onboarding
-Revises: 0006_email_verification
+Revision ID: 0008_onboarding
+Revises: 0007_ai_coach
 Create Date: 2026-05-08
+
+Renumbered from 0007 to 0008 during merge with main: PR #29 (AI Coach)
+shipped 0007_ai_coach.py concurrently with this branch, so the linear
+chain is now 0006 → 0007_ai_coach → 0008_onboarding.
 
 Sprint Day 4 (§2.3). Stream A's post-signup wizard tracks 4-step progress
 on the user row, and team invites land in their own tier-gated table.
@@ -32,8 +36,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "0007_onboarding"
-down_revision = "0006_email_verification"
+revision = "0008_onboarding"
+down_revision = "0007_ai_coach"
 branch_labels = None
 depends_on = None
 

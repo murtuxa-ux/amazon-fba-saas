@@ -47,6 +47,7 @@ class Organization(Base):
     account_violations = relationship("AccountViolation", back_populates="organization")
     client_portal_users = relationship("ClientPortalUser", back_populates="organization")
     client_messages = relationship("ClientMessage", back_populates="organization")
+    ai_coach_actions = relationship("AiCoachAction", back_populates="organization")
 
 
 # ── User ─────────────────────────────────────────────────────────────────────
@@ -697,3 +698,64 @@ class TeamInvite(Base):
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── AI Coach (§2.6 #4) ──────────────────────────────────────────────────────
+# Daily top-5 action feed cross-pulled from BuyBox alerts and PPC campaigns.
+# Click-to-execute by design — never auto-writes to Amazon (§3.1 SP-API moat).
+# RLS Tier A added in 0007 migration. metadata_json holds extra context as
+# JSON-serialized text rather than JSONB to keep the schema portable for the
+# soft-launch; can be migrated to JSONB later without breaking the API.
+class AiCoachAction(Base):
+    __tablename__ = "ai_coach_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    action_type = Column(String(50), nullable=False)            # reorder_soon / lost_buybox / high_acos_keyword / ...
+    asin = Column(String(20), nullable=True, index=True)
+    dollar_impact_est = Column(Numeric(10, 2), nullable=False, default=0)
+    urgency = Column(String(20), nullable=False, default="medium")  # low / medium / high / critical
+    suggested_action = Column(Text, nullable=False)
+    reasoning = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="pending")  # pending / dismissed / completed / expired
+    dismissed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    valid_until = Column(DateTime, nullable=False)
+
+    organization = relationship("Organization", back_populates="ai_coach_actions")
+    feedback = relationship(
+        "AiCoachFeedback",
+        back_populates="action",
+        cascade="all, delete-orphan",
+    )
+
+
+class AiCoachFeedback(Base):
+    __tablename__ = "ai_coach_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    action_id = Column(
+        Integer,
+        ForeignKey("ai_coach_actions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    rating = Column(Integer, nullable=False)                    # 1-5
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    action = relationship("AiCoachAction", back_populates="feedback")
