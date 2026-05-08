@@ -62,12 +62,22 @@ class User(Base):
     role = Column(String(50), default="manager")             # owner / admin / manager / viewer
     avatar = Column(String(10), default="U")
     is_active = Column(Boolean, default=True)
+    # Self-service signup (§2.3): newly created Owner accounts start unverified.
+    # Legacy /auth/signup users were active before this column existed; the
+    # 0006 migration backfills email_verified=True for those rows.
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 
     # Relationships
     organization = relationship("Organization", back_populates="users")
     activity_logs = relationship("ActivityLog", back_populates="user")
+    email_verification_tokens = relationship(
+        "EmailVerificationToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 # ── Client ───────────────────────────────────────────────────────────────────
@@ -625,3 +635,28 @@ class OrgKeepaUsage(Base):
     __table_args__ = (
         UniqueConstraint("org_id", "date", name="uq_keepa_usage_org_date"),
     )
+
+
+# ── EmailVerificationToken (§2.3) ────────────────────────────────────────────
+# Self-service signup issues a one-shot token here, hashed with SHA-256 so
+# the plaintext never lands in the DB. /api/auth/verify looks up by hash,
+# checks expires_at and used_at, then marks the user verified. Tokens are
+# single-use: once used_at is set, /resend-verification issues a new one.
+# user_id chains to User.org_id for tenancy; RLS policy in 0006 migration
+# enforces tenant isolation via EXISTS subquery on the users table.
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="email_verification_tokens")
