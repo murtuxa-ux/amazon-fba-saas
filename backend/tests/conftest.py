@@ -106,6 +106,9 @@ def _truncate_after_test():
         # stripe_webhook_events is system-wide (no org_id) but tests rely on
         # a clean idempotency log across runs.
         "stripe_webhook_events",
+        # Sprint Day 3 + Day 4 (Stream A) — email verification + onboarding
+        # invites both have FK chains to users; truncate before users.
+        "email_verification_tokens", "team_invites",
         "users", "organizations",
     ]
     with engine.connect() as conn:
