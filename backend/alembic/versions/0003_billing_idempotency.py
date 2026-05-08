@@ -1,6 +1,6 @@
 """billing state and webhook idempotency
 
-Revision ID: 0003_billing_state_and_webhook_idempotency
+Revision ID: 0003_billing_idempotency
 Revises: 0002_rls_canonical_tables
 Create Date: 2026-05-08
 
@@ -31,7 +31,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = "0003_billing_state_and_webhook_idempotency"
+revision = "0003_billing_idempotency"
 down_revision = "0002_rls_canonical_tables"
 branch_labels = None
 depends_on = None
