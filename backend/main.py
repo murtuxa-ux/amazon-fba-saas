@@ -29,6 +29,13 @@ from keepa_service import get_keepa_data
 from stripe_billing import router as billing_router
 from plan_middleware import enforce_client_limit, enforce_scout_limit
 
+# Sprint Day 0 stubs — populated incrementally by Stream A and Stream B.
+# Empty routers are safe to register: they expose no routes until the
+# owning stream lands its feature PR. See CONVENTIONS.md for ownership.
+from signup import router as sprint_signup_router
+from onboarding import router as sprint_onboarding_router
+from audit_logs import router as sprint_audit_logs_router
+
 # Phase 3/4 AI module routers
 from ai_recommendations import router as recommendations_router
 from ai_buybox import router as buybox_router
@@ -157,6 +164,11 @@ app.include_router(scheduler_router)
 app.include_router(system_router)
 app.include_router(kpi_router)
 app.include_router(dwm_router)
+
+# Sprint stubs — empty routers, no routes exposed yet
+app.include_router(sprint_signup_router, prefix="/api/auth", tags=["auth-signup"])
+app.include_router(sprint_onboarding_router, prefix="/api/onboarding", tags=["onboarding"])
+app.include_router(sprint_audit_logs_router, prefix="/api/audit-logs", tags=["audit"])
 
 # Phase 7-11 + Phase 12-15 routers (only include if successfully imported)
 for _key, _router in _dynamic_routers.items():
