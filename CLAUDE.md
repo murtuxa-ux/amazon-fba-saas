@@ -1,45 +1,6 @@
-﻿# Amazon FBA SaaS — Project Context for Claude Code
-
-> Internal wholesale management SaaS for Ecom Era (Murtaza, founder).
-> Multi-tenant platform managing wholesale clients, account managers, products, suppliers, weekly reports, and AI-powered analytics for Amazon FBA wholesale operations.
-
----
-
-## 1. Stack & Deployment
-
-- Frontend: Next.js / React on Vercel (auto-deploy on push to main)
-- Backend: Python / FastAPI on Railway (amazon-fba-saas-production.up.railway.app)
-- Database: Postgres (Railway add-on)
-- Email: Resend HTTP API (NOT SMTP — Railway blocks ports 25/465/587)
-- Product data: Keepa API (rotate keys when token-low)
-
-Deployment: push to main -> Vercel rebuilds frontend, Railway rebuilds backend.
-
----
-
-## 2. Modules (15 sections)
-
-1. Auth (login, forgot/reset password) - Live (email pending DNS)
-2. Dashboard - Live
-3. Clients - Live
-4. Products - Live
-5. FBA Scout (Keepa-powered) - Live
-6. Weekly Reports (DWM) - Live
-7. Suppliers - Live
-8. Leaderboard - Live
-9. Reports / KPIs - Live
-10. AI Modules - ~10/24 files shipped, IN PROGRESS
-11. Email - Live (UI; sending blocked on Resend DNS)
-12. Settings - Live
-13. Advanced Features - Live
-
----
-
-## 3. Roles & Permissions
-
-- Owner: full access (Mur
-@'
 # Amazon FBA SaaS — Project Context for Claude Code
+
+**SPRINT MODE: 7-day soft launch (May 9-15, 2026).** Read CONVENTIONS.md before any PR.
 
 > Internal wholesale management SaaS for Ecom Era (Murtaza, founder).
 > Multi-tenant platform managing wholesale clients, account managers, products, suppliers, weekly reports, and AI-powered analytics for Amazon FBA wholesale operations.
