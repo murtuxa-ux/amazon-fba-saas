@@ -352,6 +352,69 @@ def get_keepa_data_for_org(
     return _parse_keepa_product(raw, asin)
 
 
+def get_keepa_history_for_org(
+    db: Session,
+    org,
+    asin: str,
+    api_key: Optional[str] = None,
+    domain: int = 1,
+) -> list:
+    """Tier-gated raw BSR history for forecasting.
+
+    Returns a list of estimated daily-units values derived from the BSR
+    time series (csv index 3) Keepa returns for the ASIN. Empty list when
+    Keepa has no BSR data for the ASIN.
+
+    Same enforcement contract as get_keepa_data_for_org: tier-gates BEFORE
+    the network call, then records real `tokensConsumed` against
+    org_keepa_usage. Used by ai_forecasting which needs the time series,
+    not the parsed aggregates.
+    """
+    from tier_limits import enforce_limit
+    enforce_limit(db, org, "keepa_lookups")
+
+    resolved_key = _resolve_api_key(org, api_key)
+    try:
+        raw, tokens = _fetch_raw_keepa(asin, resolved_key, domain)
+    except Exception as exc:
+        logger.error("Keepa history request failed for ASIN %s: %s", asin, exc)
+        raise
+
+    _record_org_keepa_usage(db, org.id, tokens_consumed=tokens)
+
+    products = raw.get("products") or []
+    if not products:
+        return []
+    csv_data = products[0].get("csv") or []
+    if len(csv_data) < 4 or not csv_data[3]:
+        return []
+    return _bsr_series_to_daily_units(csv_data[3])
+
+
+def _bsr_series_to_daily_units(bsr_series: list) -> list:
+    """Convert Keepa interleaved [timestamp, BSR, ...] into daily-units estimates.
+
+    Heuristic: BSR 1 → ~100 units/day, 1k → ~30, 10k → ~5, 100k+ → ~1.
+    Production should swap in a category-specific BSR-to-velocity model;
+    this is the same approximation called out in §2.6 dispatch.
+    """
+    daily_units = []
+    for i in range(1, len(bsr_series), 2):
+        bsr = bsr_series[i]
+        if bsr is None or bsr <= 0:
+            daily_units.append(0)
+            continue
+        if bsr < 100:
+            daily_units.append(int(100 - bsr * 0.5))
+        elif bsr < 1000:
+            daily_units.append(int(50 - (bsr - 100) / 30))
+        elif bsr < 10000:
+            daily_units.append(max(1, int(20 - (bsr - 1000) / 1000)))
+        else:
+            daily_units.append(1)
+    return daily_units
+
+
 def get_monthly_keepa_burn(db: Session, monthly_budget: int) -> dict:
     """Aggregate token burn across all orgs for the current calendar month.
 
