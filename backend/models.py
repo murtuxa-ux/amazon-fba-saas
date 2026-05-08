@@ -3,8 +3,8 @@ Database Models — Ecom Era FBA SaaS v6.0
 SQLAlchemy ORM for PostgreSQL database schema
 """
 from sqlalchemy import (
-    Column, ForeignKey, String, Integer, Boolean, Text, Float, DateTime, Date,
-    UniqueConstraint,
+    Column, ForeignKey, String, Integer, Boolean, Text, Float, DateTime,
+    Date, Numeric, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -603,3 +603,25 @@ class StripeWebhookEvent(Base):
     event_type = Column(String(100), nullable=False)
     payload = Column(Text, nullable=False)
     processed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ── Keepa cost tracking (§2.5) ──────────────────────────────────────────────
+# Tenant-scoped, per-day Keepa token + request counters. keepa_service.py
+# writes one row per (org, day); the daily cost cron later populates
+# dollar_cost from Keepa's billing endpoint. UniqueConstraint(org_id, date)
+# enforces upsert idempotency. RLS policy added in 0005_keepa_usage migration.
+class OrgKeepaUsage(Base):
+    __tablename__ = "org_keepa_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    tokens_consumed = Column(Integer, nullable=False, default=0)
+    request_count = Column(Integer, nullable=False, default=0)
+    dollar_cost = Column(Numeric(10, 4), nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "date", name="uq_keepa_usage_org_date"),
+    )

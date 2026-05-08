@@ -104,6 +104,11 @@ for _mod_name, _router_name, _key in [
 # ── App Setup ───────────────────────────────────────────────────────────────────
 app = FastAPI(title="Ecom Era FBA Wholesale SaaS", version="7.0")
 
+# Rate limiting (§2.5) — wires limiter, exception handler, SlowAPIMiddleware.
+# No-op when RATE_LIMIT_DISABLED=true (rollback flag, see CONVENTIONS.md).
+from rate_limiter import init_rate_limiter, auth_rate_limit
+init_rate_limiter(app)
+
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 # Always ensure the Vercel frontend is allowed
 if "https://amazon-fba-saas.vercel.app" not in origins:
@@ -395,7 +400,8 @@ def home():
 
 # ── Auth Routes ─────────────────────────────────────────────────────────────────
 @app.post("/auth/login")
-def login(data: LoginInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def login(request: Request, data: LoginInput, db: Session = Depends(get_db)):
     # Accept either username or email field for login
     identifier = (data.username or data.email or "").strip().lower()
     if not identifier:
@@ -489,7 +495,8 @@ FRONTEND_URL = "https://amazon-fba-saas.vercel.app"
 
 
 @app.post("/auth/forgot-password")
-def forgot_password(data: ForgotPasswordInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = Depends(get_db)):
     """Generate a password reset token and send reset email"""
     email = data.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -532,7 +539,8 @@ def forgot_password(data: ForgotPasswordInput, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/reset-password")
-def reset_password(data: ResetPasswordInput, db: Session = Depends(get_db)):
+@auth_rate_limit()
+def reset_password(request: Request, data: ResetPasswordInput, db: Session = Depends(get_db)):
     """Reset password using a valid reset token"""
     from auth import decode_token
 
