@@ -71,13 +71,13 @@ class TrackedItem(BaseModel):
 
 
 class AnalyticsResponse(BaseModel):
-    win_rate: float            # overall win rate across all tracked ASINs
-    total_tracked: int
-    currently_winning: int
-    currently_losing: int
-    suppressed: int
-    avg_competitor_count: float
-    top_competitors: List[dict]  # [{seller_name, appearances}]
+    win_rate: float = Field(default=0)            # overall win rate across all tracked ASINs
+    total_tracked: int = Field(default=0)
+    currently_winning: int = Field(default=0)
+    currently_losing: int = Field(default=0)
+    suppressed: int = Field(default=0)
+    avg_competitor_count: float = Field(default=0)
+    top_competitors: List[dict] = Field(default_factory=list)  # [{seller_name, appearances}]
 
 
 class AlertItem(BaseModel):
@@ -93,27 +93,27 @@ class AlertItem(BaseModel):
 
 class DetailedStatus(BaseModel):
     asin: str
-    product_title: str
-    current_winner: str
-    current_winner_price: float
-    our_price: float
-    history: List[HistoryEntry]
-    competitors: List[CompetitorItem]
-    win_rate_over_time: List[dict]  # [{date, win_rate}]
-    total_tracked_days: int
+    product_title: str = ""
+    current_winner: str = ""
+    current_winner_price: float = Field(default=0)
+    our_price: float = Field(default=0)
+    history: List[HistoryEntry] = Field(default_factory=list)
+    competitors: List[CompetitorItem] = Field(default_factory=list)
+    win_rate_over_time: List[dict] = Field(default_factory=list)  # [{date, win_rate}]
+    total_tracked_days: int = Field(default=0)
 
 
 class CompetitorAnalysis(BaseModel):
     asin: str
-    product_title: str
-    our_price: float
-    competitors: List[CompetitorItem]
-    price_range_min: float
-    price_range_max: float
-    avg_competitor_price: float
-    lowest_competitor_price: float
-    fba_count: int
-    fbm_count: int
+    product_title: str = ""
+    our_price: float = Field(default=0)
+    competitors: List[CompetitorItem] = Field(default_factory=list)
+    price_range_min: float = Field(default=0)
+    price_range_max: float = Field(default=0)
+    avg_competitor_price: float = Field(default=0)
+    lowest_competitor_price: float = Field(default=0)
+    fba_count: int = Field(default=0)
+    fbm_count: int = Field(default=0)
 
 
 class TrackInput(BaseModel):
@@ -141,9 +141,9 @@ class RepriceOutput(BaseModel):
 
 class HistoryResponse(BaseModel):
     asin: str
-    product_title: str
-    history: List[HistoryEntry]
-    date_range: dict          # {start, end}
+    product_title: str = ""
+    history: List[HistoryEntry] = Field(default_factory=list)
+    date_range: dict = Field(default_factory=dict)          # {start, end}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

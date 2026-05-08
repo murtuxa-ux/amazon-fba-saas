@@ -218,8 +218,8 @@ class PurchaseOrderResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime
-    line_items: List[POLineItemResponse]
-    status_logs: List[POStatusLogResponse]
+    line_items: List[POLineItemResponse] = Field(default_factory=list)
+    status_logs: List[POStatusLogResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -244,11 +244,13 @@ class PurchaseOrderListResponse(BaseModel):
 
 class POStatsResponse(BaseModel):
     """PO statistics response"""
-    total_pos: int
-    by_status: dict
-    total_spend: float
-    pending_deliveries: int
-    avg_delivery_days: Optional[float]
+    total_pos: int = Field(default=0)
+    by_status: dict = Field(default_factory=dict)
+    total_spend: float = Field(default=0)
+    pending_deliveries: int = Field(default=0)
+    # avg_delivery_days is intentionally Optional — null means "no
+    # deliveries yet", semantically distinct from "0 days".
+    avg_delivery_days: Optional[float] = None
 
 
 # ============================================================================

@@ -3,7 +3,7 @@ from sqlalchemy import func, and_, or_
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from decimal import Decimal
 import math
 
@@ -287,22 +287,25 @@ class CashFlowProjectionResponse(BaseModel):
     client_id: int
     period_start: datetime
     period_end: datetime
-    projected_revenue: float
-    projected_expenses: float
-    projected_profit: float
-    actual_revenue: Optional[float]
-    actual_expenses: Optional[float]
-    actual_profit: Optional[float]
-    variance_pct: Optional[float]
+    projected_revenue: float = Field(default=0)
+    projected_expenses: float = Field(default=0)
+    projected_profit: float = Field(default=0)
+    # actual_* and variance_pct are intentionally Optional — null means
+    # "the period hasn't been actualized yet", which is semantically
+    # distinct from "actual was zero". Frontend renders "—" for null.
+    actual_revenue: Optional[float] = None
+    actual_expenses: Optional[float] = None
+    actual_profit: Optional[float] = None
+    variance_pct: Optional[float] = None
 
 class DashboardResponse(BaseModel):
-    total_revenue: float
-    total_profit: float
-    outstanding_invoices_amount: float
-    avg_margin_pct: float
-    monthly_trends: List[dict]
-    top_clients: List[dict]
-    overdue_invoices: List[dict]
+    total_revenue: float = Field(default=0)
+    total_profit: float = Field(default=0)
+    outstanding_invoices_amount: float = Field(default=0)
+    avg_margin_pct: float = Field(default=0)
+    monthly_trends: List[dict] = Field(default_factory=list)
+    top_clients: List[dict] = Field(default_factory=list)
+    overdue_invoices: List[dict] = Field(default_factory=list)
 
 # Helper Functions
 def calculate_pl_metrics(pl: PLStatement) -> PLStatement:

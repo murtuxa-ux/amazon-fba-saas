@@ -180,7 +180,9 @@ class ClientPnLResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime
-    line_items: List[PnLLineItemResponse] = []
+    # default_factory avoids the shared-mutable-default footgun and guarantees
+    # the wire format is `[]` not `null` when a PnL has no line items yet.
+    line_items: List[PnLLineItemResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -204,38 +206,38 @@ class ClientPnLSummaryRow(BaseModel):
 
 class ClientPnLSummary(BaseModel):
     client_id: int
-    rows: List[ClientPnLSummaryRow]
-    total_revenue: float
-    total_net_profit: float
-    avg_profit_margin_pct: float
+    rows: List[ClientPnLSummaryRow] = Field(default_factory=list)
+    total_revenue: float = Field(default=0)
+    total_net_profit: float = Field(default=0)
+    avg_profit_margin_pct: float = Field(default=0)
 
 
 class MonthlyOverviewRow(BaseModel):
     client_id: int
     client_name: Optional[str]
-    revenue: float
-    net_profit: float
-    profit_margin_pct: float
-    units_sold: int
+    revenue: float = Field(default=0)
+    net_profit: float = Field(default=0)
+    profit_margin_pct: float = Field(default=0)
+    units_sold: int = Field(default=0)
 
 
 class MonthlyOverview(BaseModel):
     month: str
-    rows: List[MonthlyOverviewRow]
-    total_revenue: float
-    total_net_profit: float
-    avg_profit_margin_pct: float
+    rows: List[MonthlyOverviewRow] = Field(default_factory=list)
+    total_revenue: float = Field(default=0)
+    total_net_profit: float = Field(default=0)
+    avg_profit_margin_pct: float = Field(default=0)
 
 
 class TrendDataPoint(BaseModel):
     month: str
-    revenue: float
-    net_profit: float
-    avg_profit_margin_pct: float
+    revenue: float = Field(default=0)
+    net_profit: float = Field(default=0)
+    avg_profit_margin_pct: float = Field(default=0)
 
 
 class TrendResponse(BaseModel):
-    trends: List[TrendDataPoint]
+    trends: List[TrendDataPoint] = Field(default_factory=list)
 
 
 # ============================================================================
