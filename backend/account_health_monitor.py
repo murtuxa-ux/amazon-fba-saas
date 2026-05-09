@@ -140,10 +140,10 @@ class UpdateViolationRequest(BaseModel):
 
 
 class ViolationListResponse(BaseModel):
-    violations: List[AccountViolationSchema]
-    total_count: int
-    critical_count: int
-    open_count: int
+    violations: List[AccountViolationSchema] = Field(default_factory=list)
+    total_count: int = Field(default=0)
+    critical_count: int = Field(default=0)
+    open_count: int = Field(default=0)
 
 
 class RiskFactor(BaseModel):
@@ -156,8 +156,8 @@ class RiskFactor(BaseModel):
 class RiskAssessment(BaseModel):
     risk_level: RiskLevel
     risk_score: int = Field(..., ge=0, le=100)
-    risk_factors: List[RiskFactor]
-    recommendations: List[str]
+    risk_factors: List[RiskFactor] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
     last_updated: datetime
 
 
@@ -171,9 +171,9 @@ class Alert(BaseModel):
 
 
 class AlertResponse(BaseModel):
-    alerts: List[Alert]
-    total_count: int
-    unacknowledged_count: int
+    alerts: List[Alert] = Field(default_factory=list)
+    total_count: int = Field(default=0)
+    unacknowledged_count: int = Field(default=0)
 
 
 class BenchmarkMetric(BaseModel):
@@ -185,7 +185,7 @@ class BenchmarkMetric(BaseModel):
 
 
 class BenchmarkComparison(BaseModel):
-    metrics: List[BenchmarkMetric]
+    metrics: List[BenchmarkMetric] = Field(default_factory=list)
     overall_status: AccountStatus
 
 

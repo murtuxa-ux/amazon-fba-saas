@@ -7,7 +7,7 @@ Aggregates data from inventory forecasting, risk analysis, pricing optimization,
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, func, desc
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import json
@@ -175,21 +175,21 @@ class RiskSummaryItem(BaseModel):
 
 class DashboardStats(BaseModel):
     """Dashboard statistics"""
-    total_alerts: int
-    active_alerts: int
-    opportunities_found: int
-    risks_flagged: int
-    avg_opportunity_score: float
-    avg_risk_score: float
+    total_alerts: int = Field(default=0)
+    active_alerts: int = Field(default=0)
+    opportunities_found: int = Field(default=0)
+    risks_flagged: int = Field(default=0)
+    avg_opportunity_score: float = Field(default=0)
+    avg_risk_score: float = Field(default=0)
 
 
 class DashboardResponse(BaseModel):
     """Unified intelligence dashboard response"""
-    top_opportunities: List[ProductScoreResponse]
-    active_alerts: Dict[str, List[IntelligenceAlertResponse]]
-    risk_summary: List[RiskSummaryItem]
-    market_trends: List[Dict[str, Any]]
-    stats: DashboardStats
+    top_opportunities: List[ProductScoreResponse] = Field(default_factory=list)
+    active_alerts: Dict[str, List[IntelligenceAlertResponse]] = Field(default_factory=dict)
+    risk_summary: List[RiskSummaryItem] = Field(default_factory=list)
+    market_trends: List[Dict[str, Any]] = Field(default_factory=list)
+    stats: DashboardStats = Field(default_factory=DashboardStats)
 
 
 # ========================

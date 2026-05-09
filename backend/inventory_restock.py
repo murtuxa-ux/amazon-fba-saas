@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, desc
 from sqlalchemy.orm import Session, relationship
 from datetime import datetime, timedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from auth import get_current_user, tenant_session
 from database import get_db, Base, engine
@@ -216,15 +216,15 @@ class RestockCalculationRequest(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    total_skus: int
-    healthy_count: int
-    low_stock_count: int
-    critical_count: int
-    out_of_stock_count: int
-    total_alerts: int
-    unread_alerts: int
-    inbound_shipments_count: int
-    total_storage_fee_monthly: float
+    total_skus: int = Field(default=0)
+    healthy_count: int = Field(default=0)
+    low_stock_count: int = Field(default=0)
+    critical_count: int = Field(default=0)
+    out_of_stock_count: int = Field(default=0)
+    total_alerts: int = Field(default=0)
+    unread_alerts: int = Field(default=0)
+    inbound_shipments_count: int = Field(default=0)
+    total_storage_fee_monthly: float = Field(default=0)
 
 
 # ============================================================================
