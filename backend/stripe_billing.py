@@ -13,7 +13,7 @@ Sprint Day 1 additions (§2.2):
 
 import json
 import stripe
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,8 +22,14 @@ from typing import Optional
 
 from config import settings
 from database import get_db
-from models import Organization, User, ActivityLog, StripeWebhookEvent
+from models import (
+    CanceledOrgPurgeQueue,
+    Organization,
+    StripeWebhookEvent,
+    User,
+)
 from auth import get_current_user, tenant_session, require_role
+from audit_logs import record_audit
 from tier_limits import get_usage_summary
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -269,6 +275,7 @@ def get_usage(
 @router.post("/checkout")
 def create_checkout(
     data: CheckoutInput,
+    request: Request,
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -320,12 +327,19 @@ def create_checkout(
         allow_promotion_codes=True,
     )
 
+    record_audit(
+        db, request, user,
+        action="billing.checkout_started", resource_type="billing",
+        resource_id=session.id,
+        after={"plan": resolved, "billing_cycle": data.billing_cycle or "monthly"},
+    )
     return {"checkout_url": session.url, "session_id": session.id}
 
 
 @router.post("/portal")
 def create_portal(
     data: PortalInput,
+    request: Request,
     user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
@@ -344,6 +358,11 @@ def create_portal(
         or "https://amazon-fba-saas.vercel.app/billing",
     )
 
+    record_audit(
+        db, request, user,
+        action="billing.portal_accessed", resource_type="billing",
+        after={"return_url": data.return_url or ""},
+    )
     return {"portal_url": session.url}
 
 
@@ -498,6 +517,27 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             org.plan = "scout"
             org.stripe_subscription_id = ""
             org.status = "canceled"
+
+            # Schedule a 30-day grace period before hard-deleting the
+            # org's data (§2.2 + §3.4). Re-cancellation on a row already
+            # queued is a no-op so a redelivered webhook (idempotency
+            # already prevents that, but defense in depth) won't reset
+            # the timer or queue duplicates.
+            existing_queue = (
+                db.query(CanceledOrgPurgeQueue)
+                .filter(CanceledOrgPurgeQueue.org_id == org.id)
+                .first()
+            )
+            if not existing_queue:
+                now_naive = datetime.utcnow()
+                db.add(
+                    CanceledOrgPurgeQueue(
+                        org_id=org.id,
+                        canceled_at=now_naive,
+                        purge_after=now_naive + timedelta(days=30),
+                    )
+                )
+
             db.commit()
 
     elif event_type == "customer.subscription.trial_will_end":

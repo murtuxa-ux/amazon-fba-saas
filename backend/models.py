@@ -759,3 +759,54 @@ class AiCoachFeedback(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     action = relationship("AiCoachAction", back_populates="feedback")
+
+
+# ── AuditLog (§3.4 P1-lite) ─────────────────────────────────────────────────
+# Customer-dispute trail for state-changing endpoints. record_audit() in
+# backend/audit_logs.py writes one row per state mutation; the read endpoint
+# (GET /api/audit-logs) is Owner/Admin-only. Tier A RLS in 0009 migration —
+# tenant isolation by org_id NULLIF current_setting. Retention varies by
+# tier (scout 7d / growth 30d / professional 180d / enterprise 365d) and is
+# purged daily by cron/audit_retention.py.
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    action = Column(String(100), nullable=False, index=True)
+    resource_type = Column(String(50), nullable=False, index=True)
+    resource_id = Column(String(100), nullable=True)
+    before_json = Column(Text, nullable=True)
+    after_json = Column(Text, nullable=True)
+    ip = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    request_id = Column(String(40), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+# ── CanceledOrgPurgeQueue (§2.2 30-day grace) ───────────────────────────────
+# Stripe customer.subscription.deleted enqueues a row here; cron/canceled_
+# org_purge.py runs daily and hard-deletes orgs whose purge_after timestamp
+# has elapsed. No FK on org_id (and no RLS): the org row itself is the
+# target of deletion, so a CASCADE FK would re-enqueue the orphaned record
+# unnecessarily. System-wide table — only the cron and the webhook touch it.
+class CanceledOrgPurgeQueue(Base):
+    __tablename__ = "canceled_org_purge_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, nullable=False, unique=True, index=True)
+    canceled_at = Column(DateTime, nullable=False)
+    purge_after = Column(DateTime, nullable=False, index=True)
+    purged_at = Column(DateTime, nullable=True)
+    purge_status = Column(String(20), nullable=False, default="pending")

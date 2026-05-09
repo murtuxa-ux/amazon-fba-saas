@@ -109,6 +109,10 @@ def _truncate_after_test():
         # Sprint Day 3 + Day 4 (Stream A) — email verification + onboarding
         # invites both have FK chains to users; truncate before users.
         "email_verification_tokens", "team_invites",
+        # Sprint Day 6 (Stream B) — audit logs + canceled-org purge queue.
+        # audit_logs FK's to users + organizations (cascaded), the purge
+        # queue is system-wide.
+        "audit_logs", "canceled_org_purge_queue",
         "users", "organizations",
     ]
     with engine.connect() as conn:
