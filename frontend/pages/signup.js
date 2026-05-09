@@ -25,37 +25,37 @@ export default function Signup() {
     setError(null);
   };
 
-  const validateForm = () => {
-    if (!formData.orgName.trim()) {
+  const validateFormSnapshot = (data) => {
+    if (!data.orgName.trim()) {
       setError('Organization name is required');
       return false;
     }
-    if (!formData.fullName.trim()) {
+    if (!data.fullName.trim()) {
       setError('Full name is required');
       return false;
     }
-    if (!formData.email.trim()) {
+    if (!data.email.trim()) {
       setError('Email is required');
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!emailRegex.test(data.email)) {
       setError('Please enter a valid email address');
       return false;
     }
-    if (!formData.password) {
+    if (!data.password) {
       setError('Password is required');
       return false;
     }
-    if (formData.password.length < 10) {
+    if (data.password.length < 10) {
       setError('Password must be at least 10 characters');
       return false;
     }
-    if (!/\d/.test(formData.password) || !/[A-Za-z]/.test(formData.password)) {
+    if (!/\d/.test(data.password) || !/[A-Za-z]/.test(data.password)) {
       setError('Password must contain at least one letter and one digit');
       return false;
     }
-    if (formData.password !== formData.confirmPassword) {
+    if (data.password !== data.confirmPassword) {
       setError('Passwords do not match');
       return false;
     }
@@ -65,7 +65,27 @@ export default function Signup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    // Sync any browser-autofilled values into React state before validating —
+    // Chrome's autofill writes directly to the input without firing the
+    // synthetic change event, so password managers can leave formData
+    // empty and the form bails out silently. Read FormData and merge.
+    // (Issue #15, Bug D.)
+    const dom = new FormData(e.currentTarget);
+    const synced = {
+      orgName: (dom.get('orgName') || formData.orgName || '').toString(),
+      fullName: (dom.get('fullName') || formData.fullName || '').toString(),
+      email: (dom.get('email') || formData.email || '').toString(),
+      password: (dom.get('password') || formData.password || '').toString(),
+      confirmPassword: (dom.get('confirmPassword') || formData.confirmPassword || '').toString(),
+    };
+    let domSnapshot = synced;
+    setFormData((prev) => {
+      const merged = { ...prev, ...synced };
+      domSnapshot = merged;
+      return merged;
+    });
+
+    if (!validateFormSnapshot(domSnapshot)) {
       return;
     }
 
@@ -79,10 +99,10 @@ export default function Signup() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          org_name: formData.orgName,
-          name: formData.fullName,
-          email: formData.email,
-          password: formData.password,
+          org_name: domSnapshot.orgName,
+          name: domSnapshot.fullName,
+          email: domSnapshot.email,
+          password: domSnapshot.password,
         }),
       });
 
