@@ -192,10 +192,25 @@ def billing_status(
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
-    """Return current billing status for the organization."""
+    """Return current billing status + trial countdown + tier usage for the org.
+
+    Single endpoint the /billing UI consumes. Org.status is the source of
+    truth (kept in sync by /billing/webhook on subscription lifecycle
+    events) — Stripe API calls below only enrich, they don't drive state.
+    """
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
     resolved_plan = PLAN_ALIASES.get(org.plan, org.plan)
     plan = PLANS.get(resolved_plan, PLANS["scout"])
+
+    # Org.status is naive UTC (`DateTime` column, not timezone=True). Use a
+    # naive utcnow() to match — same convention as signup.py and onboarding.py.
+    org_status = org.status or "active"
+    trial_days_remaining = None
+    if org.trial_ends_at:
+        delta = (org.trial_ends_at - datetime.utcnow()).days
+        trial_days_remaining = max(0, delta)
 
     result = {
         "plan": resolved_plan,
@@ -205,6 +220,14 @@ def billing_status(
         "stripe_subscription_id": org.stripe_subscription_id or None,
         "has_payment_method": bool(org.stripe_subscription_id),
         "limits": get_plan_limits(resolved_plan),
+        # Org-status surface for the Billing page banner logic.
+        "status": org_status,
+        "is_trialing": org_status == "trialing",
+        "is_past_due": org_status == "past_due",
+        "is_canceled": org_status == "canceled",
+        "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+        "trial_days_remaining": trial_days_remaining,
+        "usage": get_usage_summary(db, org),
     }
 
     # If Stripe is configured, fetch subscription details

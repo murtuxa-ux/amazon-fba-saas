@@ -377,6 +377,40 @@ def template_account_invite(context_data: Dict) -> tuple[str, str]:
     return subject, html
 
 
+def template_trial_ending(context_data: Dict) -> tuple[str, str]:
+    """Trial-ending reminder (§2.4). Daily cron triggers at 3 days + 1 day out.
+
+    Required keys: user_name, days_remaining, billing_link.
+    """
+    user_name = context_data.get("user_name", "there")
+    days_remaining = int(context_data.get("days_remaining", 3))
+    billing_link = context_data.get(
+        "billing_link",
+        "https://amazon-fba-saas.vercel.app/billing",
+    )
+    plural = "s" if days_remaining != 1 else ""
+
+    content = f"""
+    <h2>Your trial ends in {days_remaining} day{plural}</h2>
+    <p>Hi {user_name},</p>
+    <p>Your 14-day Ecom Era trial ends in <strong>{days_remaining} day{plural}</strong>. Add a payment method now to keep access uninterrupted.</p>
+
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="{billing_link}" class="button">Add Payment Method</a>
+    </p>
+
+    <p style="font-size: 12px; color: #999;">
+        Without a card, your account will be paused at trial end. Your data
+        stays available for 30 days after that — you can resume any time
+        by adding a card.
+    </p>
+    <p>Best regards,<br/>The Ecom Era Team</p>
+    """
+    subject = f"Your Ecom Era trial ends in {days_remaining} day{plural}"
+    html = get_html_wrapper(content, "Trial Ending Soon")
+    return subject, html
+
+
 # Template registry
 TEMPLATE_REGISTRY = {
     "welcome": template_welcome,
@@ -384,6 +418,7 @@ TEMPLATE_REGISTRY = {
     "price_alert": template_price_alert,
     "report_ready": template_report_ready,
     "account_invite": template_account_invite,
+    "trial_ending": template_trial_ending,
 }
 
 
