@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 
 // 4-step post-signup wizard (§2.3). Backend at /api/onboarding/*.
@@ -152,6 +153,10 @@ export default function Onboarding() {
 
 function Shell({ children }) {
   return (
+    <>
+    <Head>
+      <title>Get started · Ecom Era</title>
+    </Head>
     <div style={{
       minHeight: '100vh',
       background: '#0A0A0A',
@@ -161,6 +166,7 @@ function Shell({ children }) {
     }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>{children}</div>
     </div>
+    </>
   );
 }
 

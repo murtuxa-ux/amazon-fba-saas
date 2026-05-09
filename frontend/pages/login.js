@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 
@@ -291,6 +292,9 @@ export default function LoginPage() {
 
   return (
     <>
+      <Head>
+        <title>{showForgotPassword ? 'Reset password' : 'Sign in'} · Ecom Era</title>
+      </Head>
       <style>{styles.styleSheet}</style>
       <div style={styles.container}>
         <div style={styles.card}>
