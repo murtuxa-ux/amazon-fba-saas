@@ -4,6 +4,7 @@
  * Hits /billing/status (extended) and /billing/portal (Owner/Admin only).
  */
 import { useState, useEffect } from "react";
+import Head from "next/head";
 import Sidebar from "../components/Sidebar";
 
 const API_URL =
@@ -291,6 +292,10 @@ export default function Billing() {
 
 function Shell({ children }) {
   return (
+    <>
+    <Head>
+      <title>Billing &amp; Plans · Ecom Era</title>
+    </Head>
     <div
       style={{
         display: "flex",
@@ -303,6 +308,7 @@ function Shell({ children }) {
       <Sidebar />
       <main style={{ flex: 1, padding: "2rem", minWidth: 0 }}>{children}</main>
     </div>
+    </>
   );
 }
 

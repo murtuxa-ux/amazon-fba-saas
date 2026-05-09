@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 
 export default function Signup() {
@@ -132,6 +133,10 @@ export default function Signup() {
 
   if (submitted) {
     return (
+      <>
+      <Head>
+        <title>Check your email · Ecom Era</title>
+      </Head>
       <div style={{
         minHeight: '100vh',
         backgroundColor: '#0A0A0A',
@@ -187,10 +192,15 @@ export default function Signup() {
           </p>
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    <Head>
+      <title>Create account · Ecom Era</title>
+    </Head>
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#0A0A0A',
@@ -320,6 +330,7 @@ export default function Signup() {
         </p>
       </div>
     </div>
+    </>
   );
 }
 

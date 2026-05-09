@@ -3,6 +3,7 @@
  * AuthProvider + route guarding
  */
 import "../styles/globals.css";
+import Head from "next/head";
 import { useRouter } from "next/router";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { installCamelCaseFetch } from "../lib/api";
@@ -14,10 +15,19 @@ if (typeof window !== "undefined") {
 }
 
 const PUBLIC_ROUTES = ["/login", "/signup", "/landing", "/pricing", "/onboarding", "/portal"];
+// /404 (and /_error) bypass AuthGuard entirely. They render for both auth
+// states without redirect — sending an unauthenticated visitor from a 404
+// to /login swallows the bad URL, and sending an authenticated user to /
+// hides the fact that the path they reached doesn't exist.
+const BYPASS_AUTH_ROUTES = ["/404", "/_error"];
 
 function AuthGuard({ children }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+
+  if (BYPASS_AUTH_ROUTES.includes(router.pathname)) {
+    return children;
+  }
 
   if (loading) {
     return (
@@ -50,6 +60,10 @@ function AuthGuard({ children }) {
 export default function App({ Component, pageProps }) {
   return (
     <AuthProvider>
+      <Head>
+        <title>Ecom Era — Amazon FBA Management</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
       <AuthGuard>
         <Component {...pageProps} />
       </AuthGuard>
