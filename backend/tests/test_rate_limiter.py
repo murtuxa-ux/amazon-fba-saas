@@ -18,9 +18,52 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def reset_limiter():
+    """Wipe slowapi's in-memory bucket between tests so requests in one test
+    don't push the 5/min/IP bucket past the threshold in the next.
+    """
+    yield
+    try:
+        import rate_limiter
+        storage = getattr(rate_limiter.limiter, "_storage", None)
+        if storage is not None and hasattr(storage, "reset"):
+            storage.reset()
+    except Exception:
+        # NoOpLimiter (RATE_LIMIT_DISABLED=true) has no _storage; harmless.
+        pass
+
+
 def _bogus_login(client):
     return client.post(
         "/auth/login", json={"username": "nope", "password": "nope"}
+    )
+
+
+def test_login_rate_limit_does_not_500(client):
+    """Regression for the auth_rate_limit key_func bug.
+
+    The decorator used to pass `key_func=lambda req: ...` to limiter.limit().
+    slowapi 0.1.9 (extension.py:496) inspects parameter names to decide
+    whether to pass the Request — only the literal name "request" triggers
+    that branch; everything else is called as `lim.key_func()` with zero
+    args, which raised TypeError and surfaced as a 500 on every /auth/login
+    attempt in production. The pre-existing rate-limit tests asserted
+    `!= 429` and so were silently happy with a 500.
+
+    This test asserts the route reaches the handler and returns 401 for
+    bogus creds — proving the slowapi runtime path executed cleanly.
+    """
+    from config import settings
+
+    if settings.RATE_LIMIT_DISABLED:
+        pytest.skip("RATE_LIMIT_DISABLED is set — slowapi runtime path not exercised.")
+
+    resp = _bogus_login(client)
+    assert resp.status_code == 401, (
+        f"Expected 401 (bogus credentials), got {resp.status_code}. "
+        f"A 500 here means slowapi crashed inside the auth_rate_limit "
+        f"decorator. Body: {resp.text!r}"
     )
 
 
@@ -32,12 +75,14 @@ def test_login_rate_limit_returns_429_after_threshold(client):
     if settings.RATE_LIMIT_DISABLED:
         pytest.skip("RATE_LIMIT_DISABLED is set — limiter test would be a no-op.")
 
-    # First N attempts should not be 429 (they'll be 401 unauthorized).
-    for _ in range(threshold):
+    # First N attempts should be 401 (bogus creds, below the limit).
+    # Asserting 401 specifically — not just `!= 429` — so a 500 from a
+    # broken decorator can't hide here either.
+    for i in range(threshold):
         resp = _bogus_login(client)
-        assert resp.status_code != 429, (
-            f"Hit 429 before reaching threshold {threshold}; "
-            f"got status {resp.status_code} body={resp.text!r}"
+        assert resp.status_code == 401, (
+            f"Attempt {i + 1}/{threshold} expected 401, got {resp.status_code} "
+            f"body={resp.text!r}"
         )
 
     # The (threshold+1)-th attempt should be 429.
