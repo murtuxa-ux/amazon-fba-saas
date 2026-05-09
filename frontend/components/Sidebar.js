@@ -1,8 +1,10 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
   const router = useRouter();
+  const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
@@ -72,12 +74,18 @@ const Sidebar = () => {
     localStorage.setItem('sidebar_expanded_sections', JSON.stringify(newExpanded));
   };
 
-  // Handle sign out
+  // Handle sign out — delegate to AuthContext.logout so the React user
+  // state, localStorage token+user, /auth/logout call, and Sentry user
+  // tag all clear in one transaction. The previous bespoke version only
+  // removed `ecomera_user` (left `ecomera_token` behind) and used
+  // router.push, which left AuthContext.user populated → AuthGuard saw
+  // the user as still authenticated and bounced /login back to /. UI
+  // prefs are cleared here since logout doesn't own them.
+  // (Issue #15 — Sign Out non-functional.)
   const handleSignOut = () => {
-    localStorage.removeItem('ecomera_user');
     localStorage.removeItem('sidebar_collapsed');
     localStorage.removeItem('sidebar_expanded_sections');
-    router.push('/login');
+    logout();
   };
 
   // Check if link is active

@@ -204,7 +204,19 @@ export default function LoginPage() {
     setError('');
     setSuccess('');
 
-    if (!email || !password) {
+    // Fall back to the live DOM values when React state is empty: Chrome
+    // autofill writes directly to the <input> without dispatching the
+    // synthetic change event React listens for, so a credentialed
+    // autofill leaves `email`/`password` as '' and the form bails out
+    // silently. Read FormData as the source of truth and sync state.
+    // (Issue #15, Bug D.)
+    const formData = new FormData(e.currentTarget);
+    const submittedEmail = (formData.get('email') || email || '').toString().trim();
+    const submittedPassword = (formData.get('password') || password || '').toString();
+    if (submittedEmail !== email) setEmail(submittedEmail);
+    if (submittedPassword !== password) setPassword(submittedPassword);
+
+    if (!submittedEmail || !submittedPassword) {
       setError('Please enter both email and password');
       return;
     }
@@ -222,7 +234,7 @@ export default function LoginPage() {
       //
       // Backend accepts either username or email under the same field;
       // we pass the form's email value as the identifier.
-      await authLogin(email, password);
+      await authLogin(submittedEmail, submittedPassword);
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => {
         router.push('/');
@@ -297,11 +309,12 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit}>
               <div style={styles.formGroup}>
                 <label htmlFor="email" style={styles.label}>
-                  Email Address
+                  Email or Username
                 </label>
                 <input
                   id="email"
-                  type="email"
+                  name="email"
+                  type="text"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -313,7 +326,7 @@ export default function LoginPage() {
                     ...(error && !email ? styles.inputError : {}),
                   }}
                   disabled={loading}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
 
@@ -323,6 +336,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
