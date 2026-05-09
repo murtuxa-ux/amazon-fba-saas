@@ -42,7 +42,7 @@ setup_structlog()
 # owning stream lands its feature PR. See CONVENTIONS.md for ownership.
 from signup import router as sprint_signup_router
 from onboarding import router as sprint_onboarding_router
-from audit_logs import router as sprint_audit_logs_router
+from audit_logs import router as sprint_audit_logs_router, record_audit
 
 # Phase 3/4 AI module routers
 from ai_recommendations import router as recommendations_router
@@ -607,6 +607,7 @@ def list_users(user: User = Depends(tenant_session), db: Session = Depends(get_d
 @app.post("/users")
 def add_user(
     data: AddUserInput,
+    request: Request,
     user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
@@ -628,6 +629,12 @@ def add_user(
     db.add(new_user)
     db.commit()
     _log_activity(db, user, "user_added", f"Added user {data.username}")
+    record_audit(
+        db, request, user,
+        action="user.create", resource_type="user",
+        resource_id=new_user.id,
+        after={"username": new_user.username, "email": new_user.email, "role": new_user.role},
+    )
     return {"status": "created", "username": data.username}
 
 
@@ -655,12 +662,14 @@ class UserUpdateInput(BaseModel):
 def update_user(
     user_id: int,
     data: UserUpdateInput,
+    request: Request,
     user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
     target = db.query(User).filter(User.id == user_id, User.org_id == user.org_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found.")
+    before = {"name": target.name, "email": target.email, "role": target.role, "is_active": target.is_active}
     if data.name is not None:
         target.name = data.name.strip()
         target.avatar = data.name[0].upper() if data.name else target.avatar
@@ -672,12 +681,20 @@ def update_user(
         target.is_active = data.is_active
     db.commit()
     _log_activity(db, user, "user_updated", f"Updated user {target.username}")
+    record_audit(
+        db, request, user,
+        action="user.update", resource_type="user",
+        resource_id=target.id,
+        before=before,
+        after={"name": target.name, "email": target.email, "role": target.role, "is_active": target.is_active},
+    )
     return {"status": "updated", "username": target.username}
 
 
 @app.delete("/users/{user_id}")
 def delete_user(
     user_id: int,
+    request: Request,
     user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
@@ -688,9 +705,17 @@ def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete yourself.")
     if target.role == "owner":
         raise HTTPException(status_code=400, detail="Cannot delete the owner account.")
+    before = {"username": target.username, "email": target.email, "role": target.role}
+    target_id = target.id
     db.delete(target)
     db.commit()
     _log_activity(db, user, "user_deleted", f"Deleted user {target.username}")
+    record_audit(
+        db, request, user,
+        action="user.delete", resource_type="user",
+        resource_id=target_id,
+        before=before,
+    )
     return {"status": "deleted", "username": target.username}
 
 
@@ -741,6 +766,7 @@ def list_clients(
 @app.post("/clients")
 def add_client(
     data: ClientInput,
+    request: Request,
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -764,6 +790,12 @@ def add_client(
     db.commit()
     db.refresh(client)
     _log_activity(db, user, "client_added", f"Added client {data.name}")
+    record_audit(
+        db, request, user,
+        action="client.create", resource_type="client",
+        resource_id=client.id,
+        after={"name": client.name, "email": client.email, "marketplace": client.marketplace, "plan": client.plan},
+    )
     return {"status": "created", "client": {"id": client.id, "name": client.name}}
 
 
@@ -788,30 +820,49 @@ def get_client(
 def update_client(
     client_id: int,
     data: ClientUpdateInput,
+    request: Request,
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     c = get_org_scoped_query(db, user, Client).filter(Client.id == client_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Client not found.")
-    for field, val in data.dict(exclude_none=True).items():
+    before = {"name": c.name, "email": c.email, "status": c.status, "plan": c.plan}
+    changes = data.dict(exclude_none=True)
+    for field, val in changes.items():
         setattr(c, field, val)
     db.commit()
+    record_audit(
+        db, request, user,
+        action="client.update", resource_type="client",
+        resource_id=c.id,
+        before=before,
+        after={"name": c.name, "email": c.email, "status": c.status, "plan": c.plan, "_changed": list(changes.keys())},
+    )
     return {"status": "updated", "client": {"id": c.id, "name": c.name}}
 
 
 @app.delete("/clients/{client_id}")
 def delete_client(
     client_id: int,
+    request: Request,
     user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
     c = get_org_scoped_query(db, user, Client).filter(Client.id == client_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Client not found.")
+    before = {"name": c.name, "email": c.email, "status": c.status}
+    deleted_id = c.id
     db.delete(c)
     db.commit()
     _log_activity(db, user, "client_deleted", f"Deleted client {c.name}")
+    record_audit(
+        db, request, user,
+        action="client.delete", resource_type="client",
+        resource_id=deleted_id,
+        before=before,
+    )
     return {"removed": 1}
 
 
