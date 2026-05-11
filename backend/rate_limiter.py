@@ -59,24 +59,32 @@ def init_rate_limiter(app):
 
 
 def auth_rate_limit():
-    """Strict limit for login/signup/password-reset endpoints. 5/min per IP."""
+    """Strict limit for login/signup/password-reset endpoints. 5/min per IP.
+
+    No per-decorator key_func override: slowapi 0.1.9's __evaluate_limits
+    (extension.py:496) uses inspect.signature(lim.key_func).parameters to
+    decide whether to pass the Request — only the literal name "request"
+    triggers the request-passing branch; any other name (or a zero-arg
+    lambda) is called as `lim.key_func()` with zero args, which crashed
+    every /auth/login attempt with TypeError. The Limiter's default
+    key_func (_get_user_or_ip) is named correctly and falls through to IP
+    keying when no user is on request.state — exactly what we want for
+    unauthenticated auth endpoints.
+    """
     if settings.RATE_LIMIT_DISABLED:
         def noop(func):
             return func
         return noop
-    return limiter.limit(
-        f"{settings.RATE_LIMIT_AUTH_PER_IP_PER_MIN}/minute",
-        key_func=lambda req: f"ip:{get_remote_address(req)}",
-    )
+    return limiter.limit(f"{settings.RATE_LIMIT_AUTH_PER_IP_PER_MIN}/minute")
 
 
 def ip_rate_limit():
-    """Default IP-level limit. 200/min."""
+    """Default IP-level limit. 200/min.
+
+    See auth_rate_limit() for why we don't pass a per-decorator key_func.
+    """
     if settings.RATE_LIMIT_DISABLED:
         def noop(func):
             return func
         return noop
-    return limiter.limit(
-        f"{settings.RATE_LIMIT_PER_IP_PER_MIN}/minute",
-        key_func=lambda req: f"ip:{get_remote_address(req)}",
-    )
+    return limiter.limit(f"{settings.RATE_LIMIT_PER_IP_PER_MIN}/minute")
