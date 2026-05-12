@@ -72,18 +72,56 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ── JWT Token management ────────────────────────────────────────────────────
 
 def create_access_token(data: dict, expires_hours: int = None) -> str:
+    """Mint a short-lived access token. Default expiry from settings
+    (post-Day-7: 24h). Used in every Authorization: Bearer header.
+    """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(hours=expires_hours or settings.JWT_EXPIRY_HOURS)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "token_type": "access"})
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_token(token: str) -> dict:
+def create_refresh_token(data: dict, expires_days: int = None) -> str:
+    """Mint a long-lived refresh token. 30 days by default. Sent to
+    /auth/refresh to obtain a fresh access token when the client's
+    access token has expired. Carries a distinct `token_type` claim so
+    a refresh token cannot accidentally be accepted on regular routes
+    that expect an access token.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(
+        days=expires_days or settings.JWT_REFRESH_EXPIRY_DAYS
+    )
+    to_encode.update({"exp": expire, "token_type": "refresh"})
+    return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(token: str, expected_type: str = "access") -> dict:
+    """Decode a JWT and verify it's the expected type.
+
+    `expected_type` defaults to "access" so existing callers (get_current_user,
+    routes that check Authorization) continue to work unchanged. The
+    /auth/refresh endpoint calls this with expected_type="refresh" so an
+    access token cannot be used to refresh, and a refresh token cannot be
+    used on regular routes.
+
+    Tokens minted BEFORE this PR don't carry a token_type claim — they
+    default to "access" so legacy clients keep working. Refresh-token
+    rejection is strict: a token missing token_type is rejected from
+    refresh.
+    """
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+    actual_type = payload.get("token_type", "access")
+    if expected_type == "refresh" and actual_type != "refresh":
+        raise HTTPException(status_code=401, detail="Refresh token required.")
+    if expected_type == "access" and actual_type != "access":
+        # Access route was hit with a refresh token — treat as invalid.
+        raise HTTPException(status_code=401, detail="Access token required.")
+    return payload
 
 
 # ── User extraction & role checking ─────────────────────────────────────────

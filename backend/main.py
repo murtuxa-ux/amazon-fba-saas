@@ -21,7 +21,8 @@ from models import (
 )
 from auth import (
     tenant_session, require_role, hash_password, verify_password,
-    create_access_token, get_org_scoped_query,
+    create_access_token, create_refresh_token, decode_token,
+    get_org_scoped_query,
 )
 from ai_engine import calculate_score, get_decision, get_risk_level
 from fba_scoring import compute_fba_score, compute_profit
@@ -453,6 +454,7 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
         raise HTTPException(status_code=403, detail="Account is deactivated.")
 
     token = create_access_token({"user_id": user.id, "org_id": user.org_id})
+    refresh_token = create_refresh_token({"user_id": user.id, "org_id": user.org_id})
 
     # Org lookup is best-effort. Login must succeed even if the org row is
     # unreadable (column drift, RLS denial during a flip window, etc.).
@@ -481,12 +483,45 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
 
     return {
         "token": token,
+        "refresh_token": refresh_token,
         # Flat fields for AuthContext consumers
         **user_data,
         # Nested user object for login.js consumers
         "user": user_data,
         "message": "Login successful",
     }
+
+
+class RefreshTokenInput(BaseModel):
+    refresh_token: str
+
+
+@app.post("/auth/refresh")
+@auth_rate_limit()
+def refresh_access_token(
+    request: Request, response: Response, data: RefreshTokenInput, db: Session = Depends(get_db),
+):
+    """Exchange a valid refresh token for a fresh access token.
+
+    Day-7 dispatch item 5. The frontend calls this when its access token
+    returns 401 from a regular endpoint. If the refresh token has also
+    expired or is rejected, the client should bounce to /login.
+
+    The refresh token is NOT rotated here (single-token model for v1) —
+    clients keep using the same refresh token until it expires. Token
+    rotation is a follow-up if we see refresh-token theft in the wild.
+    """
+    payload = decode_token(data.refresh_token, expected_type="refresh")
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid refresh token payload.")
+
+    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found or inactive.")
+
+    new_access = create_access_token({"user_id": user.id, "org_id": user.org_id})
+    return {"token": new_access}
 
 
 @app.post("/auth/signup")
