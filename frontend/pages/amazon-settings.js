@@ -364,18 +364,11 @@ const MARKETPLACES = [
   { code: 'AU', name: 'Australia', flag: '🇦🇺', currency: 'AUD' },
 ];
 
-const MOCK_API_LOGS = [
-  { timestamp: '14:32:05', endpoint: '/products', method: 'GET', status: 200, duration: '245ms' },
-  { timestamp: '14:31:58', endpoint: '/orders', method: 'GET', status: 200, duration: '312ms' },
-  { timestamp: '14:31:45', endpoint: '/financials', method: 'GET', status: 200, duration: '478ms' },
-  { timestamp: '14:31:20', endpoint: '/inventory', method: 'GET', status: 200, duration: '156ms' },
-  { timestamp: '14:30:15', endpoint: '/products', method: 'POST', status: 201, duration: '534ms' },
-  { timestamp: '14:29:50', endpoint: '/config', method: 'PUT', status: 200, duration: '89ms' },
-];
-
-const MOCK_ERROR_LOGS = [
-  { timestamp: '13:45:20', endpoint: '/ppc', method: 'GET', status: 429, error: 'Rate limit exceeded', stack: 'RateLimitError: Too many requests in short time period' },
-];
+// Mock log arrays zeroed during the 2026-05-12 mock-data purge. Real
+// logs flow from /amazon-integration/sync/logs once the SP-API sync
+// runs against this org. Empty until then.
+const MOCK_API_LOGS = [];
+const MOCK_ERROR_LOGS = [];
 
 export default function AmazonSettings() {
   const [activeTab, setActiveTab] = useState('api-config');
