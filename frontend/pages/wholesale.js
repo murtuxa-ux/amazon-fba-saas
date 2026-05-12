@@ -1727,41 +1727,23 @@ const WholesaleAnalytics = () => {
     }
   };
 
-  const mockData = {
-    totalRevenue: 45678,
-    totalProfit: 12340,
-    avgROI: 27,
-    activeSuppliers: 8,
-    revenueBySupplier: [
-      { supplier: 'Supplier A', revenue: 15000 },
-      { supplier: 'Supplier B', revenue: 12000 },
-      { supplier: 'Supplier C', revenue: 10000 },
-      { supplier: 'Supplier D', revenue: 8678 },
-    ],
-    profitTrend: [
-      { month: 'Sep', profit: 1500 },
-      { month: 'Oct', profit: 2300 },
-      { month: 'Nov', profit: 2100 },
-      { month: 'Dec', profit: 3200 },
-      { month: 'Jan', profit: 2140 },
-      { month: 'Feb', profit: 1100 },
-    ],
-    categoryDistribution: [
-      { category: 'Electronics', percentage: 35 },
-      { category: 'Home', percentage: 25 },
-      { category: 'Sports', percentage: 20 },
-      { category: 'Other', percentage: 20 },
-    ],
-    topProducts: [
-      { product: 'Product A', roi: 45 },
-      { product: 'Product B', roi: 38 },
-      { product: 'Product C', roi: 32 },
-      { product: 'Product D', roi: 28 },
-      { product: 'Product E', roi: 25 },
-    ],
+  // Mock fallback removed during the 2026-05-12 mock-data purge.
+  // The dispatch is explicit: "Never silently fall back to mock data."
+  // Real data loads from the wholesale_profit_calculator backend; when
+  // it returns nothing, charts render zero-state arrays so the page
+  // doesn't lie about supplier revenue / profit trend / etc.
+  const emptyDisplayData = {
+    totalRevenue: 0,
+    totalProfit: 0,
+    avgROI: 0,
+    activeSuppliers: 0,
+    revenueBySupplier: [],
+    profitTrend: [],
+    categoryDistribution: [],
+    topProducts: [],
   };
 
-  const displayData = data || mockData;
+  const displayData = data || emptyDisplayData;
 
   const RevenueBySupplierChart = () => {
     const maxRevenue = Math.max(
