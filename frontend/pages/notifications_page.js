@@ -373,32 +373,12 @@ const styles = {
   },
 };
 
-const mockNotifications = [
-  { id: 1, type: 'Inventory Alert', icon: '📦', title: 'Low Stock Alert', message: 'Product SKU-001 has 5 days of supply remaining', timestamp: '2025-03-29 14:30', read: false },
-  { id: 2, type: 'Price Change', icon: '💰', title: 'Price Drop Detected', message: 'Competitor price for ASIN B07XYZ dropped by 12%', timestamp: '2025-03-29 12:15', read: true },
-  { id: 3, type: 'Order Update', icon: '📋', title: 'Order Shipped', message: 'Order #ORD-2025-00456 has been shipped', timestamp: '2025-03-29 10:45', read: false },
-  { id: 4, type: 'PPC Alert', icon: '🎯', title: 'High ACOS Campaign', message: 'Campaign "Spring Sales" ACOS is 45%, above 35% threshold', timestamp: '2025-03-28 16:20', read: true },
-  { id: 5, type: 'Inventory Alert', icon: '📦', title: 'Stock Replenishment', message: 'SKU-042 recommended for reorder based on forecasts', timestamp: '2025-03-28 14:00', read: false },
-  { id: 6, type: 'System', icon: '⚙️', title: 'Sync Complete', message: 'Daily Amazon inventory sync completed successfully', timestamp: '2025-03-28 02:00', read: true },
-  { id: 7, type: 'Account Health', icon: '⚠️', title: 'Account Health Warning', message: 'Your seller rating has dropped to 98.5%', timestamp: '2025-03-27 19:30', read: false },
-  { id: 8, type: 'Price Change', icon: '💰', title: 'Price Alert', message: 'Your product ASIN B08ABC reached target price', timestamp: '2025-03-27 11:20', read: true },
-  { id: 9, type: 'Order Update', icon: '📋', title: 'Return Initiated', message: 'Customer initiated return for order #ORD-2025-00421', timestamp: '2025-03-27 09:00', read: false },
-  { id: 10, type: 'PPC Alert', icon: '🎯', title: 'Campaign Paused', message: 'Campaign "Flash Deal" was auto-paused due to low ROI', timestamp: '2025-03-26 15:45', read: true },
-  { id: 11, type: 'Inventory Alert', icon: '📦', title: 'Inventory Issue', message: 'Suspected inventory discrepancy for SKU-089', timestamp: '2025-03-26 13:10', read: false },
-  { id: 12, type: 'Account Health', icon: '⚠️', title: 'Negative Review', message: 'New 2-star review: "Product arrived damaged"', timestamp: '2025-03-25 20:40', read: true },
-  { id: 13, type: 'System', icon: '⚙️', title: 'Report Generated', message: 'Monthly P&L Report for February is ready', timestamp: '2025-03-25 10:00', read: false },
-  { id: 14, type: 'Price Change', icon: '💰', title: 'Price Adjustment', message: 'Your price adjustment to $49.99 is now live', timestamp: '2025-03-24 16:30', read: true },
-  { id: 15, type: 'Order Update', icon: '📋', title: 'Order Delivered', message: 'Order #ORD-2025-00389 delivered successfully', timestamp: '2025-03-24 14:00', read: false },
-];
-
-const alertRulesMock = [
-  { id: 1, type: 'Low Stock Alert', config: 'SKU-001: 7 days threshold', method: 'In-app, Email', enabled: true },
-  { id: 2, type: 'Price Drop Alert', config: 'ASIN B07XYZ: 10% threshold', method: 'In-app', enabled: true },
-  { id: 3, type: 'Buy Box Lost', config: 'Monitoring 5 ASINs', method: 'Email', enabled: false },
-  { id: 4, type: 'ROI Below Threshold', config: 'Minimum ROI: 25%', method: 'In-app, Email', enabled: true },
-  { id: 5, type: 'Negative Review', config: 'Star rating: 3 stars or below', method: 'Email', enabled: true },
-  { id: 6, type: 'Account Health Warning', config: 'Seller rating: 98% threshold', method: 'In-app', enabled: true },
-];
+// Notification + alert-rule arrays zeroed during the 2026-05-12 mock-data
+// purge. Real notifications flow from /notifications when wired. Empty
+// state means a brand-new org sees a clean "no notifications yet" panel
+// instead of fake SKU-001 / ORD-2025-00456 / 98% seller-rating noise.
+const mockNotifications = [];
+const alertRulesMock = [];
 
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState('all');
