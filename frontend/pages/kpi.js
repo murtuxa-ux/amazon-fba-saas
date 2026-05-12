@@ -94,38 +94,14 @@ export default function KPIPage() {
     setLoading(false);
   };
 
-  const mockKPICards = [
-    { label: 'Revenue', value: '$145,230', trend: '+12.5%', isUp: true },
-    { label: 'Profit', value: '$32,450', trend: '+8.2%', isUp: true },
-    { label: 'Orders', value: '2,340', trend: '-2.1%', isUp: false },
-    { label: 'Units Sold', value: '8,923', trend: '+18.7%', isUp: true },
-    { label: 'ROI %', value: '312%', trend: '+5.3%', isUp: true },
-    { label: 'ACOS %', value: '28.4%', trend: '-3.2%', isUp: true },
-  ];
-
-  const mockMetrics = [
-    { metric: 'ACOS', target: '25%', actual: '28.4%', status: 'At Risk', trend: '+3.4%' },
-    { metric: 'TACoS', target: '35%', actual: '32.1%', status: 'On Track', trend: '-1.2%' },
-    { metric: 'BSR Average', target: '#5000', actual: '#4,230', status: 'On Track', trend: '+15%' },
-    { metric: 'Return Rate', target: '2%', actual: '2.3%', status: 'At Risk', trend: '+0.3%' },
-    { metric: 'Buy Box %', target: '95%', actual: '91.2%', status: 'Behind', trend: '-3.8%' },
-    { metric: 'Session Rate', target: '3.5%', actual: '3.2%', status: 'At Risk', trend: '-0.3%' },
-    { metric: 'Conversion Rate', target: '8%', actual: '7.4%', status: 'On Track', trend: '-0.6%' },
-    { metric: 'Gross Margin', target: '45%', actual: '43.2%', status: 'At Risk', trend: '-1.8%' },
-    { metric: 'Ad Spend', target: '$8000', actual: '$8,450', status: 'At Risk', trend: '+5.6%' },
-    { metric: 'Inventory Turnover', target: '4.5x', actual: '4.2x', status: 'At Risk', trend: '-6.7%' },
-    { metric: 'Net Profit Margin', target: '22%', actual: '19.8%', status: 'Behind', trend: '-2.2%' },
-    { metric: 'Customer Satisfaction', target: '4.8', actual: '4.6', status: 'On Track', trend: '-0.2' },
-  ];
-
-  const mockDepartmentScores = [
-    { name: 'Wholesale', score: 87 },
-    { name: 'PL', score: 76 },
-    { name: 'PPC', score: 92 },
-    { name: 'Operations', score: 81 },
-  ];
-
-  const departmentScoreTotal = mockDepartmentScores.reduce((sum, d) => sum + d.score, 0) / mockDepartmentScores.length;
+  // KPI arrays zeroed during the 2026-05-12 mock-data purge. Real KPIs
+  // load from /kpi-targets and /analytics/overview once those endpoints
+  // are wired into this page. Empty arrays mean the page renders the
+  // section headers + the timeframe selector but no fake numbers.
+  const mockKPICards = [];
+  const mockMetrics = [];
+  const mockDepartmentScores = [];
+  const departmentScoreTotal = 0;
 
   return (
     <div style={styles.outerContainer}>

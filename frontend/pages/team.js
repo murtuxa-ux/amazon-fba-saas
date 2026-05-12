@@ -429,126 +429,13 @@ const styles = {
   },
 };
 
-// Mock data for team members
-const mockMembers = [
-  {
-    id: 1,
-    name: 'Sarah Johnson',
-    email: 'sarah@company.com',
-    role: 'Owner',
-    department: 'Wholesale',
-    avatar: 'SJ',
-    status: 'Active',
-    lastActive: '2026-03-29 14:30',
-  },
-  {
-    id: 2,
-    name: 'Michael Chen',
-    email: 'michael@company.com',
-    role: 'Admin',
-    department: 'PPC',
-    avatar: 'MC',
-    status: 'Active',
-    lastActive: '2026-03-29 12:15',
-  },
-  {
-    id: 3,
-    name: 'Emily Rodriguez',
-    email: 'emily@company.com',
-    role: 'Manager',
-    department: 'Private Label',
-    avatar: 'ER',
-    status: 'Active',
-    lastActive: '2026-03-28 18:45',
-  },
-  {
-    id: 4,
-    name: 'David Park',
-    email: 'david@company.com',
-    role: 'Analyst',
-    department: 'Finance',
-    avatar: 'DP',
-    status: 'Inactive',
-    lastActive: '2026-03-25 09:20',
-  },
-  {
-    id: 5,
-    name: 'Jessica Liu',
-    email: 'jessica@company.com',
-    role: 'Manager',
-    department: 'Operations',
-    avatar: 'JL',
-    status: 'Active',
-    lastActive: '2026-03-29 13:00',
-  },
-];
-
-// Mock audit logs
-const mockAuditLogs = [
-  {
-    id: 1,
-    user: 'Sarah Johnson',
-    avatar: 'SJ',
-    action: 'Created new product listing',
-    type: 'Create',
-    resource: 'Product: "Premium Wireless Charger"',
-    timestamp: '2026-03-29 14:30',
-  },
-  {
-    id: 2,
-    user: 'Michael Chen',
-    avatar: 'MC',
-    action: 'Updated PPC campaign settings',
-    type: 'Update',
-    resource: 'Campaign: "Spring Sale 2026"',
-    timestamp: '2026-03-29 12:15',
-  },
-  {
-    id: 3,
-    user: 'Emily Rodriguez',
-    avatar: 'ER',
-    action: 'Deleted obsolete product',
-    type: 'Delete',
-    resource: 'Product: "Old SKU-12345"',
-    timestamp: '2026-03-28 18:45',
-  },
-  {
-    id: 4,
-    user: 'Jessica Liu',
-    avatar: 'JL',
-    action: 'Logged in to dashboard',
-    type: 'Login',
-    resource: 'User Session',
-    timestamp: '2026-03-29 13:00',
-  },
-  {
-    id: 5,
-    user: 'Michael Chen',
-    avatar: 'MC',
-    action: 'Exported financial report',
-    type: 'Create',
-    resource: 'Report: "Q1 2026 Summary"',
-    timestamp: '2026-03-29 10:45',
-  },
-  {
-    id: 6,
-    user: 'Sarah Johnson',
-    avatar: 'SJ',
-    action: 'Modified user permissions',
-    type: 'Update',
-    resource: 'User: David Park',
-    timestamp: '2026-03-29 09:20',
-  },
-];
-
-// Mock performance data
-const mockPerformance = [
-  { name: 'Sarah Johnson', scoutedProducts: 45, ordersProcessed: 320, revenueManaged: 125000, tasksCompleted: 87 },
-  { name: 'Michael Chen', scoutedProducts: 38, ordersProcessed: 285, revenueManaged: 98000, tasksCompleted: 72 },
-  { name: 'Emily Rodriguez', scoutedProducts: 42, ordersProcessed: 295, revenueManaged: 112000, tasksCompleted: 81 },
-  { name: 'Jessica Liu', scoutedProducts: 35, ordersProcessed: 240, revenueManaged: 85000, tasksCompleted: 65 },
-  { name: 'David Park', scoutedProducts: 28, ordersProcessed: 180, revenueManaged: 62000, tasksCompleted: 48 },
-];
+// Mock arrays zeroed during the 2026-05-12 mock-data purge.
+// Real data flows from /users (members), /api/audit-logs (audit log
+// per team member), and /dwm/leaderboard (performance) once those
+// fetches are wired below. Until then, page renders empty.
+const mockMembers = [];
+const mockAuditLogs = [];
+const mockPerformance = [];
 
 // Role permission templates
 const rolePermissions = {
