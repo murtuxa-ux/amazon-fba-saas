@@ -74,22 +74,11 @@ export default function PrivateLabelPage() {
   }, []);
 
   const loadMockData = () => {
-    const mockBrands = [
-      { id: 1, name: 'AMIRA Skincare', trademarkStatus: 'Registered', registryStatus: 'Approved', filingDate: '2024-06-15', registrationNumber: 'TM-2024-001' },
-      { id: 2, name: 'Deck Out Accessories', trademarkStatus: 'Registered', registryStatus: 'Approved', filingDate: '2024-03-20', registrationNumber: 'TM-2024-002' },
-    ];
-
-    const mockProducts = [
-      { id: 1, brandName: 'AMIRA', productName: 'Vitamin C Serum', asin: 'B0D8Z9K2L1', status: 'Live', category: 'Skincare', launchDate: '2024-08-01', investment: 12000, revenue: 45000, profit: 18000, roi: '150%' },
-      { id: 2, brandName: 'AMIRA', productName: 'Retinol Cream', asin: 'B0D8Z9K2L2', status: 'Live', category: 'Skincare', launchDate: '2024-09-15', investment: 15000, revenue: 52000, profit: 22000, roi: '147%' },
-      { id: 3, brandName: 'AMIRA', productName: 'Hydrating Mask', asin: 'B0D8Z9K2L3', status: 'Shipping', category: 'Skincare', launchDate: '2025-02-01', investment: 10000, revenue: 5000, profit: -2000, roi: '-20%' },
-      { id: 4, brandName: 'Deck Out', productName: 'Bamboo Desk Organizer', asin: 'B0D8Z9K2M1', status: 'Manufacturing', category: 'Desk Accessories', launchDate: '2025-04-01', investment: 8000, revenue: 0, profit: 0, roi: '0%' },
-      { id: 5, brandName: 'Deck Out', productName: 'Monitor Stand Pro', asin: 'B0D8Z9K2M2', status: 'Sourcing', category: 'Desk Accessories', launchDate: '2025-05-15', investment: 9000, revenue: 0, profit: 0, roi: '0%' },
-      { id: 6, brandName: 'Deck Out', productName: 'Ergonomic Chair Pad', asin: 'B0D8Z9K2M3', status: 'Research', category: 'Desk Accessories', launchDate: null, investment: 0, revenue: 0, profit: 0, roi: '0%' },
-    ];
-
-    setBrands(mockBrands);
-    setProducts(mockProducts);
+    // Mock arrays zeroed during the 2026-05-12 mock-data purge.
+    // Private-label module has no backend yet (design-question #6).
+    // Page renders empty state until the module ships.
+    setBrands([]);
+    setProducts([]);
   };
 
   const getStatusStyle = (status) => {

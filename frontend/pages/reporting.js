@@ -313,75 +313,15 @@ const styles = {
   },
 };
 
-const MOCK_REPORTS = [
-  {
-    id: 1,
-    name: 'Q1 Sales Summary',
-    type: 'Sales',
-    lastGenerated: '2026-03-28',
-    frequency: 'Monthly',
-    owner: 'Sarah Chen',
-  },
-  {
-    id: 2,
-    name: 'PPC Performance Report',
-    type: 'Advertising',
-    lastGenerated: '2026-03-30',
-    frequency: 'Weekly',
-    owner: 'Alex Rodriguez',
-  },
-  {
-    id: 3,
-    name: 'Inventory Analysis',
-    type: 'Inventory',
-    lastGenerated: '2026-03-27',
-    frequency: 'Monthly',
-    owner: 'Emma Wilson',
-  },
-  {
-    id: 4,
-    name: 'Customer Acquisition Cost',
-    type: 'Finance',
-    lastGenerated: '2026-03-25',
-    frequency: 'Monthly',
-    owner: 'John Smith',
-  },
-];
+// Saved-reports list — populates from real /reports/* endpoint when wired.
+// Empty array removes fake Sarah Chen / Alex Rodriguez / Emma Wilson /
+// John Smith placeholder rows. Page renders empty-state until the list
+// endpoint ships.
+const MOCK_REPORTS = [];
 
-const MOCK_RECIPIENTS = [
-  {
-    id: 1,
-    name: 'Sarah Chen',
-    email: 'sarah@example.com',
-    subscribedReports: 'Q1 Sales Summary, Inventory Analysis',
-    frequency: 'Weekly',
-    lastSent: '2026-03-30',
-  },
-  {
-    id: 2,
-    name: 'Mike Johnson',
-    email: 'mike@example.com',
-    subscribedReports: 'PPC Performance Report',
-    frequency: 'Daily',
-    lastSent: '2026-03-30',
-  },
-  {
-    id: 3,
-    name: 'Alex Rodriguez',
-    email: 'alex@example.com',
-    subscribedReports: 'All Reports',
-    frequency: 'Daily',
-    lastSent: '2026-03-30',
-  },
-  {
-    id: 4,
-    name: 'Emma Wilson',
-    email: 'emma@example.com',
-    subscribedReports: 'Inventory Analysis, Customer Acquisition Cost',
-    frequency: 'Weekly',
-    lastSent: '2026-03-29',
-  },
-];
+// Report-subscription recipients — populates from /users + a future
+// subscriptions table. Empty until that wiring lands.
+const MOCK_RECIPIENTS = [];
 
 const CHART_DATA = [
   { week: 'Week 1', reports: 24 },
