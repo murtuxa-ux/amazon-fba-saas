@@ -148,19 +148,42 @@ app.add_middleware(RequestIDMiddleware)
 # exceptions (the 500 path).
 @app.exception_handler(Exception)
 async def _global_exception_handler(request: Request, exc: Exception):
+    """Catch-all 500 handler.
+
+    The full traceback always lands in Railway's logs so operators can
+    triage. The RESPONSE body is environment-dependent:
+
+      - In dev / staging / CI: include `exception_type` and `path` so
+        developers can correlate the response to a specific stack trace.
+      - In production: redact both — internal class names like
+        "ProgrammingError" or "OperationalError" hint at the DB/ORM
+        layer in use and shrink an attacker's recon surface. Operators
+        already have the X-Request-ID header to correlate a 500 in
+        prod with the Railway log line that has the traceback.
+
+    Production-detection is conservative: both APP_ENV=production
+    *and* the Railway-injected RAILWAY_ENVIRONMENT=production trigger
+    redaction. A misconfigured env var thus errs on the side of
+    redaction, not leakage.
+    """
+    import os
     tb = traceback.format_exc()
     _log.error(
         "Unhandled exception on %s %s: %s\n%s",
         request.method, request.url.path, type(exc).__name__, tb,
     )
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Internal server error",
-            "exception_type": type(exc).__name__,
-            "path": request.url.path,
-        },
+
+    in_prod = (
+        settings.APP_ENV == "production"
+        or os.getenv("RAILWAY_ENVIRONMENT") == "production"
     )
+
+    body = {"detail": "Internal server error"}
+    if not in_prod:
+        body["exception_type"] = type(exc).__name__
+        body["path"] = request.url.path
+
+    return JSONResponse(status_code=500, content=body)
 
 
 # Include routers
