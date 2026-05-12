@@ -3,7 +3,7 @@ Ecom Era FBA SaaS v6.0 — Main Application
 Multi-tenant, JWT-authenticated API built with FastAPI and PostgreSQL
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -405,7 +405,7 @@ def home():
 # ── Auth Routes ─────────────────────────────────────────────────────────────────
 @app.post("/auth/login")
 @auth_rate_limit()
-def login(request: Request, data: LoginInput, db: Session = Depends(get_db)):
+def login(request: Request, response: Response, data: LoginInput, db: Session = Depends(get_db)):
     # Accept either username or email field for login
     identifier = (data.username or data.email or "").strip().lower()
     if not identifier:
