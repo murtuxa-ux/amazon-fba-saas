@@ -1,0 +1,51 @@
+name: prod-smoke
+
+# Probes every production GET endpoint and surfaces 5xx responses as a
+# failed workflow run. Day-7 dispatch item 6. Runs:
+#
+#   * every 30 min on cron (catches silent regressions between deploys)
+#   * on every push to main (catches regressions caused by the merge itself)
+#   * on demand via workflow_dispatch (manual re-run from the Actions tab)
+#
+# Required secret:
+#   AUDIT_JWT — long-lived JWT for the audit user (prod org_id=20,
+#               user_id=1). When missing or expired, audit.py logs in via
+#               username/password against /auth/login as a fallback.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  push:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Probe every prod GET endpoint
+        env:
+          AUDIT_JWT: ${{ secrets.AUDIT_JWT }}
+        # --strict: exit 1 if any 5xx / network error is in the results.
+        # --markdown: write an extra .md summary; audit.py also appends
+        #             it to $GITHUB_STEP_SUMMARY automatically.
+        run: |
+          python audit.py --prod --strict --markdown
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-audit-reports
+          path: |
+            audit_report_*.json
+            audit_report_*.txt
+            audit_report_*.md
+          retention-days: 30
