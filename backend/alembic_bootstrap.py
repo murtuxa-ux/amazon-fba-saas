@@ -32,12 +32,15 @@ pre-alembic state.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from alembic import command
 from alembic.config import Config
+
+log = logging.getLogger(__name__)
 
 # A canonical table from models.py used as a defensive guard against
 # stamping a truly-empty DB. The legacy SIGNAL is `alembic_version`
@@ -48,6 +51,78 @@ from alembic.config import Config
 # in every deployed version since seed.py was first run. It will not
 # be renamed or removed in any forseeable refactor (PR C, RLS, etc.).
 _LEGACY_PROBE_TABLE = "users"
+
+
+def ensure_role_membership(engine) -> None:
+    """Defensive: app_role membership must be granted to the runtime
+    connection role for `SET LOCAL ROLE app_role` to succeed at request
+    time.
+
+    Without this membership, every authed request that runs through
+    `tenant_session()` raises:
+        permission denied to set role "app_role"
+
+    The grant is created once in `docs/postgres-roles-setup.md` for fresh
+    deploys, but production has had at least one incident where the role
+    membership was dropped (manual psql cleanup). This bootstrap-time
+    re-grant turns that single-point-of-failure into a self-healing
+    boot step.
+
+    The check uses `pg_has_role` which is cheap (catalog lookup, no
+    cluster lock). When the membership is already present, this is a
+    no-op. When missing, we re-grant.
+
+    Two role names are looked up: the configured DATABASE_URL user and
+    the canonical "migration_role" used in prod / CI. Either may be the
+    runtime credential depending on environment; granting from both
+    sides costs nothing.
+    """
+    # The runtime connection role is whatever DATABASE_URL is using.
+    # Pull it from the engine's effective URL.
+    try:
+        runtime_role = engine.url.username
+    except Exception:
+        runtime_role = None
+
+    candidates = []
+    if runtime_role:
+        candidates.append(runtime_role)
+    if runtime_role != "migration_role":
+        candidates.append("migration_role")
+
+    with engine.connect() as conn:
+        for role_name in candidates:
+            try:
+                result = conn.execute(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :r) AS exists"
+                    ),
+                    {"r": role_name},
+                ).first()
+                if not result or not result.exists:
+                    continue
+                has_role_result = conn.execute(
+                    text("SELECT pg_has_role(:r, 'app_role', 'MEMBER') AS has_role"),
+                    {"r": role_name},
+                ).first()
+                if has_role_result and not has_role_result.has_role:
+                    print(
+                        f"release-bootstrap: {role_name!r} is NOT a member of "
+                        "'app_role' — granting now (RLS self-heal).",
+                        flush=True,
+                    )
+                    conn.execute(text(f"GRANT app_role TO {role_name}"))
+                    conn.commit()
+            except Exception as e:
+                # Self-heal is best-effort. Don't crash the deploy if the
+                # role doesn't exist yet, or the connection role lacks
+                # GRANT privileges. Log and move on; the existing roles-
+                # setup doc still works for the manual path.
+                log.warning(
+                    "release-bootstrap: ensure_role_membership failed for "
+                    "%r: %s — bootstrap will continue.",
+                    role_name, e,
+                )
 
 
 def main() -> None:
@@ -93,6 +168,13 @@ def main() -> None:
         )
 
     command.upgrade(cfg, "head")
+
+    # RLS self-heal — ensure the runtime role can `SET LOCAL ROLE app_role`.
+    # Runs AFTER `upgrade head` so the migrations that create app_role and
+    # the membership grants have applied. Idempotent — no-op when the
+    # membership is already in place.
+    ensure_role_membership(engine)
+
     print("release-bootstrap: done.", flush=True)
 
 
