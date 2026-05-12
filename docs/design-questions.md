@@ -168,7 +168,45 @@ placeholder).
 
 ---
 
-## 7. `/wholesale` page scope vs `/profit-calculator`
+## 7. Weekly executive-summary schema (`/weekly`)
+
+**Trigger:** `/weekly` page is fully hardcoded — fake KPIs ($52,340 revenue,
+$21,840 profit, 1,820 orders, 41.7% ROI), fake department updates
+(Wholesale / Private Label / PPC / Operations cards each with hardcoded
+highlights / blockers / next-steps), fake action items list (John/Sarah/
+Mike/Alex/Jessica).
+
+**Need:** A weekly executive summary covering:
+- **Top-line KPIs** (revenue, profit, orders, ROI, new SKUs, active
+  promos) — partly available via `/client-pnl/monthly-overview` +
+  `/products` count, but summed across the wrong period; need a weekly
+  aggregation endpoint.
+- **Department updates** with highlights / blockers / next-steps per
+  department (Wholesale, PL, PPC, Operations). No backend support — this
+  is a structured stand-up record per week.
+- **Action items** with assignee, priority, due date, status. Distinct
+  from DWMDailyLogs (daily check-ins) and audit_logs (system events).
+
+**Two options:**
+
+**A.** Single `weekly_summaries` table with JSONB columns for `kpis`,
+   `department_updates`, `action_items`. Simpler to wire, less normalized.
+
+**B.** Three separate tables: `weekly_action_items`,
+   `weekly_department_updates`, and rely on existing P&L data for KPIs.
+   More normalized, more endpoints to wire.
+
+**Question:** Which option, and should the page be a dedicated route
+versus a tab inside `/reports`?
+
+**Status:** Pending. Until decided, `/weekly` ships a minimal weekly
+summary using only KPIs that exist (revenue/profit from
+`/client-pnl/trends`, leaderboard from `/dwm/leaderboard`) and a
+placeholder for department updates + action items.
+
+---
+
+## 8. `/wholesale` page scope vs `/profit-calculator`
 
 **Trigger:** Both pages exist but only `wholesale_profit_calculator.py`
 backend.
