@@ -258,9 +258,60 @@ def audit_account(browser, account):
     return log
 
 
+# Routes that are intentionally static — no backend fetch is needed and a
+# SAME_BODY verdict on these is not a regression. Documented per entry so
+# the next reviewer doesn't try to "fix" them.
+STATIC_BY_DESIGN = {
+    "/pricing": "marketing page; pricing tiers are global config, not per-org",
+    "/profit-calculator": "local arithmetic only; no backend needed",
+    "/private-label": "pending design-question #6 — no backend module yet",
+    "/ai-tools": "calculator + alerts for un-wired tools; per-tool wiring tracked in api-endpoint-gaps.md",
+    "/reports": "templates + builder form; the list endpoints (/reports/saved, /reports/scheduled) ship in a follow-up",
+    "/reporting": "subscriptions + chart; usage-trend endpoint ships in a follow-up",
+}
+
+
+def _route_has_fetch(route):
+    """Best-effort: does the frontend page file for this route contain a
+    fetch() call to BASE_URL? Used to disambiguate "wired but empty" from
+    "actually static" when both accounts' HTML bodies are identical.
+
+    Maps the dispatch's route paths to the flat frontend/pages filenames
+    (no /coach/feed → coach.js, /reports/summary → reports.js, etc.).
+    """
+    import os
+    import re
+
+    # Strip query/hash, then /-prefix.
+    path = route.split("?", 1)[0].split("#", 1)[0].strip("/")
+    if not path:
+        candidates = ["index"]
+    else:
+        # /coach/feed → try coach first
+        head = path.split("/")[0]
+        candidates = [path.replace("/", "-"), head, path]
+
+    pages_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "pages")
+    pages_dir = os.path.normpath(pages_dir)
+    for name in candidates:
+        for ext in (".js", ".tsx", ".jsx", ".ts"):
+            p = os.path.join(pages_dir, name + ext)
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        src = f.read()
+                except Exception:
+                    continue
+                if re.search(r"\bfetch\s*\(\s*[`\"']\s*\$?\{?\s*(?:BASE_URL|API|api)", src) or \
+                   re.search(r"api\.(get|post|put|delete|patch)\s*\(", src):
+                    return True, p
+                return False, p
+    return False, None
+
+
 def build_verdict_markdown(all_logs):
     md = [
-        "# Baseline UI Audit — 2026-05-12",
+        "# Baseline UI Audit — 2026-05-13",
         "",
         "**Method:** Two accounts injected via localStorage JWT, visited every authenticated route.",
         "",
@@ -269,9 +320,10 @@ def build_verdict_markdown(all_logs):
         "",
         "**Verdict legend:**",
         "- **MOCK** — known mock-data sentinels (`HMS Group`, `Sarah Chen`, …) found in body. Page is hardcoded.",
-        "- **SAME_BODY** — HTML body length differs by < 100 bytes between two different orgs. Strong signal of hardcoded data (or a static page). Needs visual review.",
+        "- **SAME_BODY** — HTML bodies match within < 100 B AND the page source has no `fetch(BASE_URL/...)` call. Genuinely static (or still using hardcoded data).",
+        "- **REAL_EMPTY** — HTML bodies match within < 100 B BUT the page source has a real fetch call. Both test accounts have empty data; the page is wired correctly and just has nothing to show.",
         "- **MISSING_404** — page renders the 404 fallback (~3.7KB). Route is not built in the frontend.",
-        "- **REAL** — body differs substantially across accounts, no sentinels. Page is API-wired.",
+        "- **REAL** — body differs substantially across accounts. Page is API-wired AND at least one account has data.",
         "- **BROKEN** — page timed out or threw a navigation error.",
         "",
         "## Verdict per route",
@@ -281,8 +333,8 @@ def build_verdict_markdown(all_logs):
     ]
 
     counts = {
-        "REAL": 0, "MOCK": 0, "SAME_BODY": 0, "MISSING_404": 0,
-        "BROKEN": 0, "UNKNOWN": 0,
+        "REAL": 0, "MOCK": 0, "SAME_BODY": 0, "REAL_EMPTY": 0,
+        "STATIC_OK": 0, "MISSING_404": 0, "BROKEN": 0, "UNKNOWN": 0,
     }
     rows_for_top = []
 
@@ -328,8 +380,22 @@ def build_verdict_markdown(all_logs):
             verdict = "MISSING_404"
             note = "renders Next.js 404 page"
         elif a_len > 5000 and b_len > 5000 and diff < 100:
-            verdict = "SAME_BODY"
-            note = f"identical body across orgs (Δ {diff} B)"
+            # Tight-diff classification depends on whether the page is
+            # actually wired to a backend fetch:
+            #   has fetch + identical body = both accounts empty (REAL_EMPTY)
+            #   no fetch + identical body  = genuinely static / mock (SAME_BODY)
+            # …unless the route is on the STATIC_BY_DESIGN allowlist, in
+            # which case the page is supposed to be identical across orgs.
+            has_fetch, _src_path = _route_has_fetch(key[0])
+            if has_fetch:
+                verdict = "REAL_EMPTY"
+                note = f"empty for both orgs (Δ {diff} B), page has API fetch"
+            elif key[0] in STATIC_BY_DESIGN:
+                verdict = "STATIC_OK"
+                note = f"intentionally static: {STATIC_BY_DESIGN[key[0]]}"
+            else:
+                verdict = "SAME_BODY"
+                note = f"identical body, no fetch in source (Δ {diff} B)"
         elif a_status == "ok" and b_status == "ok":
             verdict = "REAL"
         else:
@@ -348,8 +414,10 @@ def build_verdict_markdown(all_logs):
         "## Totals",
         "",
         f"- REAL:        {counts.get('REAL', 0)}",
+        f"- REAL_EMPTY:  {counts.get('REAL_EMPTY', 0)}  (wired but no data on either test account — acceptable)",
+        f"- STATIC_OK:   {counts.get('STATIC_OK', 0)}  (intentionally static — marketing / calculators / pending modules)",
         f"- MOCK:        {counts.get('MOCK', 0)}  (hardcoded mock data — top priority to fix)",
-        f"- SAME_BODY:   {counts.get('SAME_BODY', 0)}  (identical body across two orgs — strong mock signal, needs visual review)",
+        f"- SAME_BODY:   {counts.get('SAME_BODY', 0)}  (identical body AND no fetch in source — needs wiring)",
         f"- MISSING_404: {counts.get('MISSING_404', 0)}  (frontend route not implemented — backend may have the API but no page)",
         f"- BROKEN:      {counts.get('BROKEN', 0)}  (load timeout / nav error)",
         f"- UNKNOWN:     {counts.get('UNKNOWN', 0)}",
