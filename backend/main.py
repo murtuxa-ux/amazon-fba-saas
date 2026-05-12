@@ -312,14 +312,6 @@ class LoginInput(BaseModel):
     password: str
 
 
-class SignupInput(BaseModel):
-    org_name: str
-    name: str
-    email: str
-    username: str
-    password: str
-
-
 class AddUserInput(BaseModel):
     username: str
     password: str
@@ -522,45 +514,6 @@ def refresh_access_token(
 
     new_access = create_access_token({"user_id": user.id, "org_id": user.org_id})
     return {"token": new_access}
-
-
-@app.post("/auth/signup")
-def signup(data: SignupInput, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.username == data.username.strip().lower()).first():
-        raise HTTPException(status_code=400, detail="Username already exists.")
-    if db.query(User).filter(User.email == data.email.strip().lower()).first():
-        raise HTTPException(status_code=400, detail="Email already registered.")
-
-    org = Organization(name=data.org_name.strip(), plan="starter", created_at=_now())
-    db.add(org)
-    db.flush()
-
-    user = User(
-        org_id=org.id,
-        username=data.username.strip().lower(),
-        password_hash=hash_password(data.password),
-        name=data.name.strip(),
-        email=data.email.strip().lower(),
-        role="owner",
-        avatar=data.name[0].upper() if data.name else "U",
-        is_active=True,
-        created_at=_now(),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    token = create_access_token({"user_id": user.id, "org_id": org.id})
-    return {
-        "token": token,
-        "username": user.username,
-        "name": user.name,
-        "role": user.role,
-        "email": user.email,
-        "avatar": user.avatar,
-        "org_id": org.id,
-        "org_name": org.name,
-    }
 
 
 @app.post("/auth/logout")
