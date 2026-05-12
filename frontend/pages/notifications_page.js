@@ -383,6 +383,29 @@ const alertRulesMock = [];
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [notifications, setNotifications] = useState(mockNotifications);
+
+  // Fetch real notifications from /notifications/ on mount. The backend
+  // returns a list of { id, type, title, message, timestamp, read } —
+  // identical shape to the legacy mockNotifications so the rest of this
+  // file works unchanged.
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('ecomera_token') : null;
+    if (!token) return;
+    fetch(`${BASE_URL}/notifications/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.notifications)
+            ? data.notifications
+            : [];
+        setNotifications(list);
+      })
+      .catch(() => {});
+  }, []);
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [dateRange, setDateRange] = useState('');
