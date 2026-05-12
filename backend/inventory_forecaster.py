@@ -16,6 +16,23 @@ from auth import get_current_user, get_org_scoped_query, tenant_session
 router = APIRouter(prefix="/inventory", tags=["Inventory Forecasting"])
 
 
+@router.get("/")
+async def list_inventory(
+    user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+):
+    """List inventory items for the caller's org.
+
+    Stub for the mock-data purge (P0). The frontend at /inventory expects
+    a list of items with Amazon-SP-API-shaped fields (sku, asin, title,
+    fulfillable, inbound, dailyVelocity, daysOfStock, reorderPoint).
+    Until the SP-API ingest module lands (tracked in
+    docs/api-endpoint-gaps.md), return an empty list so the page renders
+    an empty state instead of a 404 error banner.
+    """
+    return {"items": [], "total": 0}
+
+
 def calculate_sales_velocity(monthly_sales: float, days: int = 30) -> float:
     """Convert monthly sales to daily sales velocity."""
     return monthly_sales / days if monthly_sales else 0
