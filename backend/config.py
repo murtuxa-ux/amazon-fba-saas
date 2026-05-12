@@ -13,7 +13,15 @@ class Settings(BaseSettings):
     # JWT Auth
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRY_HOURS: int = 72
+    # Access token: short-lived. 24h is the post-Day-7 security baseline
+    # (was 72h). Pre-existing 72h tokens in the wild keep working until
+    # they naturally expire — no forced logout.
+    JWT_EXPIRY_HOURS: int = 24
+    # Refresh token: longer-lived. Frontend stores it (httpOnly cookie
+    # ideally; localStorage acceptable for the v1 of this feature). On
+    # 401 from a regular endpoint the client calls /auth/refresh and
+    # gets a fresh access token.
+    JWT_REFRESH_EXPIRY_DAYS: int = 30
 
     # Keepa
     KEEPA_API_KEY: Optional[str] = None
