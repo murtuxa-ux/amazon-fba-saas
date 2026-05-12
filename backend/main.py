@@ -414,22 +414,39 @@ def login(request: Request, data: LoginInput, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == identifier).first()
     if not user:
         user = db.query(User).filter(User.email == identifier).first()
-    if not user or not verify_password(data.password, user.password_hash):
+    # Explicit None guard: accessing user.password_hash on None becomes an
+    # AttributeError that the global exception handler surfaces as a 500.
+    # Unknown usernames must return 401, not 500.
+    if user is None or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated.")
 
     token = create_access_token({"user_id": user.id, "org_id": user.org_id})
-    org = db.query(Organization).filter(Organization.id == user.org_id).first()
 
+    # Org lookup is best-effort. Login must succeed even if the org row is
+    # unreadable (column drift, RLS denial during a flip window, etc.).
+    org_name = ""
+    try:
+        org = db.query(Organization).filter(Organization.id == user.org_id).first()
+        if org is not None:
+            org_name = org.name or ""
+    except Exception:
+        _log.exception(
+            "login: failed to fetch organization (user_id=%s org_id=%s)",
+            user.id, user.org_id,
+        )
+        db.rollback()
+
+    safe_name = (user.name or user.username or "").strip()
     user_data = {
         "username": user.username,
-        "name": user.name,
+        "name": safe_name or user.username,
         "role": user.role,
         "email": user.email,
-        "avatar": user.avatar or user.name[0].upper(),
+        "avatar": user.avatar or (safe_name[:1].upper() if safe_name else "U"),
         "org_id": user.org_id,
-        "org_name": org.name if org else "",
+        "org_name": org_name,
     }
 
     return {
