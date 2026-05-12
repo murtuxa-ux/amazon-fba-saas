@@ -43,7 +43,7 @@
 # (all UNIQUE constraints) — a leak across orgs is not possible given
 # those uniqueness invariants in the table schema.
 
-backend/auth.py:103       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
+backend/auth.py:141       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
 backend/main.py:445       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
 backend/main.py:447       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
 backend/main.py:519       # reason: /auth/refresh — User lookup by id from a verified refresh JWT; pre-auth, token signature is authoritative
