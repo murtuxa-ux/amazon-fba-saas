@@ -92,7 +92,7 @@ async function apiLogin(username, password) {
 }
 
 async function apiSignup(data) {
-  const resp = await fetch(`${API_URL}/auth/signup`, {
+  const resp = await fetch(`${API_URL}/api/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

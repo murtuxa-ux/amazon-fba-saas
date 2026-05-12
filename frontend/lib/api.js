@@ -221,7 +221,7 @@ const authAPI = {
   login: (username, password) =>
     api.post("/auth/login", { username, password }),
 
-  signup: (data) => api.post("/auth/signup", data),
+  signup: (data) => api.post("/api/auth/signup", data),
 
   logout: () => api.post("/auth/logout"),
 
