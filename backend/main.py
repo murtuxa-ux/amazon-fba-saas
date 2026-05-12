@@ -128,6 +128,13 @@ app.add_middleware(
 # and Sentry events correlate across the request lifecycle.
 app.add_middleware(RequestIDMiddleware)
 
+# Security headers — six defensive HTTP headers on every response.
+# See backend/security_middleware.py for the rationale per header.
+# Starlette runs middleware in reverse order of registration, so this
+# is wired AFTER RequestIDMiddleware to ensure both run on every response.
+from security_middleware import SecurityHeadersMiddleware  # noqa: E402
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ── Global exception handler ────────────────────────────────────────────────
 # 11 endpoints currently surface as opaque 500s (audit run 2026-05-07). Without
