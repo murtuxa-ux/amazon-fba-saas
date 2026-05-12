@@ -18,15 +18,11 @@ const Dashboard = () => {
   });
   const [kpiLoading, setKpiLoading] = useState(true);
 
-  // Trend Chart State
-  const [trendData, setTrendData] = useState([
-    { month: 'Sep', revenue: 45000, profit: 12000 },
-    { month: 'Oct', revenue: 52000, profit: 15000 },
-    { month: 'Nov', revenue: 61000, profit: 18500 },
-    { month: 'Dec', revenue: 58000, profit: 17000 },
-    { month: 'Jan', revenue: 67000, profit: 20000 },
-    { month: 'Feb', revenue: 75000, profit: 23000 },
-  ]);
+  // Trend Chart State — fetched from /client-pnl/trends (see fetchTrends below).
+  // Renders empty (placeholder) until the fetch resolves; chart hides itself
+  // when the trend has zero data points.
+  const [trendData, setTrendData] = useState([]);
+  const [trendLoading, setTrendLoading] = useState(true);
 
   // Products by Status State
   const [statusData, setStatusData] = useState([]);
@@ -62,6 +58,7 @@ const Dashboard = () => {
       fetchStatusData(token);
       fetchActivityFeed(token);
       fetchTopProducts(token);
+      fetchTrends(token);
 
       setLoading(false);
     };
@@ -180,6 +177,40 @@ const Dashboard = () => {
     }
   };
 
+  const fetchTrends = async (token) => {
+    setTrendLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`${API_BASE}/client-pnl/trends`, { headers });
+      const data = res.ok ? await res.json() : {};
+      // Backend returns { trends: [{month: "2026-01", revenue, net_profit, ...}] }
+      // (snake_to_camel in lib/api.js doesn't run on raw fetch; we handle both).
+      const rawTrends = Array.isArray(data) ? data : Array.isArray(data.trends) ? data.trends : [];
+      const mapped = rawTrends.map((t) => {
+        // "2026-01" → "Jan 26" so the X-axis label stays compact.
+        const m = String(t.month || '');
+        const ymMatch = m.match(/^(\d{4})-(\d{2})/);
+        let monthLabel = m;
+        if (ymMatch) {
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const idx = parseInt(ymMatch[2], 10) - 1;
+          monthLabel = monthNames[idx] || m;
+        }
+        return {
+          month: monthLabel,
+          revenue: Number(t.revenue || t.total_revenue || 0),
+          profit: Number(t.net_profit || t.profit || 0),
+        };
+      });
+      setTrendData(mapped);
+    } catch (error) {
+      console.error('Error fetching trends:', error);
+      setTrendData([]);
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
   const fetchTopProducts = async (token) => {
     setTopProductsLoading(true);
     try {
@@ -243,9 +274,33 @@ const Dashboard = () => {
     const chartWidth = width - 2 * padding;
     const chartHeight = height - 2 * padding;
 
+    // Empty-state guard: with zero trend points, the math below produces
+    // NaN / -Infinity and React renders a broken SVG. Show a friendly
+    // "no data yet" panel until /client-pnl/trends returns rows.
+    if (!Array.isArray(trendData) || trendData.length === 0) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '300px',
+            color: '#888',
+            fontSize: '14px',
+            textAlign: 'center',
+            padding: '0 24px',
+          }}
+        >
+          {trendLoading
+            ? 'Loading revenue trend…'
+            : 'No P&L data yet. Trend will populate once weekly P&L statements are submitted.'}
+        </div>
+      );
+    }
+
     const maxRevenue = Math.max(...trendData.map((d) => d.revenue));
     const maxProfit = Math.max(...trendData.map((d) => d.profit));
-    const maxValue = Math.max(maxRevenue, maxProfit);
+    const maxValue = Math.max(maxRevenue, maxProfit) || 1;
 
     const revenuePoints = trendData.map((d, i) => ({
       x: padding + (i / (trendData.length - 1)) * chartWidth,
