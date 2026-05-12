@@ -31,6 +31,19 @@ function removeToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("ecomera_token");
     localStorage.removeItem("ecomera_user");
+    localStorage.removeItem("ecomera_refresh_token");
+  }
+}
+
+// ── Refresh token helpers (Day-7 dispatch item 5) ────────────────────────────
+function getRefreshToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("ecomera_refresh_token") || null;
+}
+
+function setRefreshToken(token) {
+  if (typeof window !== "undefined" && token) {
+    localStorage.setItem("ecomera_refresh_token", token);
   }
 }
 
@@ -89,6 +102,67 @@ api.interceptors.response.use((response) => {
   return response;
 });
 
+// ── 401 → /auth/refresh → retry once interceptor ─────────────────────────────
+// Day-7 dispatch item 5: when an axios request returns 401, try to refresh
+// the access token using the stored refresh token, then retry the original
+// request transparently. If the refresh also fails, fall through (the caller
+// sees the 401 and the AuthGuard / login.js boots back to /login as before).
+//
+// Single-flight refresh: parallel 401s share one refresh promise to avoid
+// stampeding /auth/refresh.
+let inFlightRefresh = null;
+
+async function refreshAccessToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  try {
+    // Bypass the request interceptor's Authorization header — the refresh
+    // route takes the refresh token in the body, not the Authorization.
+    const res = await axios.post(
+      `${API_BASE}/auth/refresh`,
+      { refresh_token: refreshToken },
+      { headers: { "Content-Type": "application/json" } },
+    );
+    const newToken = res?.data?.token;
+    if (newToken) {
+      setToken(newToken);
+      return newToken;
+    }
+  } catch (err) {
+    // Refresh failed (expired, invalid, server error). Clear stored auth so
+    // the next mount of AuthGuard / login.js bounces cleanly to /login.
+    removeToken();
+  }
+  return null;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error?.config;
+    if (!error?.response || error.response.status !== 401 || !original) {
+      return Promise.reject(error);
+    }
+    // Don't recurse on /auth/refresh itself, and don't retry twice.
+    if (original.__retried || original.url?.includes("/auth/refresh")) {
+      return Promise.reject(error);
+    }
+    original.__retried = true;
+    if (!inFlightRefresh) {
+      inFlightRefresh = refreshAccessToken().finally(() => {
+        inFlightRefresh = null;
+      });
+    }
+    const newToken = await inFlightRefresh;
+    if (!newToken) {
+      return Promise.reject(error);
+    }
+    original.headers = original.headers || {};
+    original.headers.Authorization = `Bearer ${newToken}`;
+    return api.request(original);
+  },
+);
+
 // Patch window.fetch globally so existing pages that use raw fetch() (rather
 // than the axios instance above) also receive camelCase responses. Installed
 // once on app boot from _app.js. Guarded against double-install.
@@ -120,14 +194,22 @@ function installCamelCaseFetch() {
   window.__camelFetchInstalled = true;
 }
 
-// ── Handle 401 responses — redirect to login ─────────────────────────────────
+// ── Final-fallback 401 handler — redirect to /login ──────────────────────────
+// Registered AFTER the refresh-and-retry interceptor above. Because axios
+// runs response interceptors in reverse registration order, the refresh
+// interceptor fires first; only if it can't recover does the request
+// re-emerge here as a 401 and we bounce to /login.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      removeToken();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+      // Avoid an infinite redirect from the /auth/login route itself.
+      const url = error.config?.url || "";
+      if (!url.includes("/auth/login") && !url.includes("/auth/refresh")) {
+        removeToken();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
     }
     return Promise.reject(error);
@@ -153,6 +235,8 @@ export {
   getToken,
   setToken,
   removeToken,
+  getRefreshToken,
+  setRefreshToken,
   getStoredUser,
   setStoredUser,
   snakeToCamel,
