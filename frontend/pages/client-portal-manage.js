@@ -17,53 +17,11 @@ const colors = {
   info: '#2196F3',
 };
 
-// Mock clients data
-const mockClients = [
-  { id: '1', name: 'Acme Corp' },
-  { id: '2', name: 'Global Ventures Inc' },
-  { id: '3', name: 'Tech Solutions Ltd' },
-  { id: '4', name: 'Premium Retail Group' },
-  { id: '5', name: 'E-Commerce Plus' },
-];
-
-// Mock messages data
-const mockMessages = [
-  {
-    id: 1,
-    subject: 'Question about inventory reports',
-    sender: 'john@acmecorp.com',
-    date: '2026-03-28 14:32',
-    read: false,
-  },
-  {
-    id: 2,
-    subject: 'Request for Q2 financial summary',
-    sender: 'sarah@globalventures.com',
-    date: '2026-03-27 11:15',
-    read: false,
-  },
-  {
-    id: 3,
-    subject: 'Permission request for new team member',
-    sender: 'admin@techsolutions.com',
-    date: '2026-03-26 09:48',
-    read: true,
-  },
-  {
-    id: 4,
-    subject: 'Portal access issue resolved',
-    sender: 'support@premiumretail.com',
-    date: '2026-03-25 16:22',
-    read: true,
-  },
-  {
-    id: 5,
-    subject: 'Thank you for the dashboard update',
-    sender: 'ops@ecommerceplus.com',
-    date: '2026-03-24 13:05',
-    read: true,
-  },
-];
+// Mock arrays zeroed during the 2026-05-12 mock-data purge. Clients
+// load from /clients; messages from /client-portal/profiles/{id}/messages
+// once that endpoint exists.
+const mockClients = [];
+const mockMessages = [];
 
 export default function ClientPortalManage() {
   const router = useRouter();

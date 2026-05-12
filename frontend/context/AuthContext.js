@@ -41,6 +41,7 @@ const API_URL =
 
 const TOKEN_KEY = "ecomera_token";
 const USER_KEY = "ecomera_user";
+const REFRESH_TOKEN_KEY = "ecomera_refresh_token";
 
 // ── Token & user helpers ───────────────────────────────────────────────────
 export function getToken() {
@@ -50,10 +51,16 @@ export function getToken() {
 export function setToken(t) {
   if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, t);
 }
+export function setRefreshToken(t) {
+  if (typeof window !== "undefined" && t) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, t);
+  }
+}
 export function removeToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
 }
 export function getStoredUser() {
@@ -201,7 +208,10 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const data = await apiLogin(username, password);
-    // Backend returns: { token, username, name, role, email, avatar, org_id, org_name }
+    // Backend returns: { token, refresh_token, username, name, role, email, avatar, org_id, org_name }
+    // refresh_token is post-Day-7 (PR #56). Pre-PR-56 backends won't return
+    // it; we tolerate that — the axios interceptor's refresh-and-retry just
+    // becomes a no-op when getRefreshToken() returns null.
     const userData = {
       username: data.username,
       name: data.name,
@@ -212,6 +222,7 @@ export function AuthProvider({ children }) {
       org_name: data.org_name,
     };
     setToken(data.token);
+    if (data.refresh_token) setRefreshToken(data.refresh_token);
     setStoredUser(userData);
     setUser(userData);
     tagSentryUser(userData);
@@ -231,6 +242,7 @@ export function AuthProvider({ children }) {
       org_name: data.org_name,
     };
     setToken(data.token);
+    if (data.refresh_token) setRefreshToken(data.refresh_token);
     setStoredUser(userData);
     setUser(userData);
     tagSentryUser(userData);
