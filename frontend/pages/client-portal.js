@@ -276,37 +276,10 @@ const ClientPortal = () => {
 
   const loadReports = () => {
     if (!selectedClient) return;
-    const mockReports = [
-      {
-        id: 1,
-        name: 'Monthly P&L',
-        dateRange: 'Mar 1 - Mar 31, 2026',
-        status: 'Ready',
-        generatedAt: '2026-03-27T10:30:00Z',
-      },
-      {
-        id: 2,
-        name: 'Weekly Performance',
-        dateRange: 'Mar 23 - Mar 29, 2026',
-        status: 'Ready',
-        generatedAt: '2026-03-29T08:15:00Z',
-      },
-      {
-        id: 3,
-        name: 'Inventory Status',
-        dateRange: 'Current',
-        status: 'Generating',
-        generatedAt: null,
-      },
-      {
-        id: 4,
-        name: 'PPC Summary',
-        dateRange: 'Mar 1 - Mar 31, 2026',
-        status: 'Scheduled',
-        generatedAt: null,
-      },
-    ];
-    setReports(mockReports);
+    // Mock reports zeroed during the 2026-05-12 mock-data purge.
+    // Reports for the selected client load from /client-portal/profiles/{id}/reports
+    // once that endpoint exists.
+    setReports([]);
 
     const storedSchedules =
       typeof window !== 'undefined'
@@ -415,15 +388,10 @@ const ClientPortal = () => {
   };
 
   const getRevenueChartData = () => {
-    const mockData = [
-      { month: 'Sep', value: 95000 },
-      { month: 'Oct', value: 108000 },
-      { month: 'Nov', value: 132000 },
-      { month: 'Dec', value: 128000 },
-      { month: 'Jan', value: 118000 },
-      { month: 'Feb', value: 125400 },
-    ];
-    return mockData;
+    // Mock chart data zeroed during the 2026-05-12 mock-data purge.
+    // Real revenue trend loads from /client-pnl/trends per client once
+    // wired. Returns [] so the chart renders empty placeholder.
+    return [];
   };
 
   const renderRevenueChart = () => {
