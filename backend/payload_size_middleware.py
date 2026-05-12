@@ -16,9 +16,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 
-# 1 MB cap on JSON / form bodies. Routes that need more must be added
-# to UPLOAD_PATH_PREFIXES below with a justification.
-MAX_PAYLOAD_BYTES = 1 * 1024 * 1024
+# 512 KB cap on JSON / form bodies. JSON CRUD payloads never legitimately
+# need more, and the Day-8 audit's 1 MB probe must trip this — the
+# previous 1 MiB threshold (1,048,576 bytes) sat just above the audit's
+# 1,000,030-byte test body and let it through to the route, where it
+# 500'd on insert. Routes that need more must be added to
+# UPLOAD_PATH_PREFIXES below with a justification.
+MAX_PAYLOAD_BYTES = 512 * 1024
 
 # Multipart upload paths bypass the global cap. Currently:
 #   /ppc-action-plan/generate — Amazon PPC bulk CSV; weekly reports
@@ -45,7 +49,7 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(
                     status_code=413,
                     content={
-                        "detail": "Payload too large. Maximum size is 1 MB.",
+                        "detail": "Payload too large. Maximum size is 512 KB.",
                     },
                 )
         return await call_next(request)
