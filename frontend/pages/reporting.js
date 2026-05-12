@@ -323,18 +323,12 @@ const MOCK_REPORTS = [];
 // subscriptions table. Empty until that wiring lands.
 const MOCK_RECIPIENTS = [];
 
-const CHART_DATA = [
-  { week: 'Week 1', reports: 24 },
-  { week: 'Week 2', reports: 32 },
-  { week: 'Week 3', reports: 28 },
-  { week: 'Week 4', reports: 41 },
-  { week: 'Week 5', reports: 35 },
-  { week: 'Week 6', reports: 48 },
-  { week: 'Week 7', reports: 45 },
-  { week: 'Week 8', reports: 52 },
-];
-
-const maxReports = Math.max(...CHART_DATA.map((d) => d.reports));
+// Weekly report-generation count — driven by a future
+// /reports/usage-trend endpoint that aggregates ReportGeneration rows.
+// Empty until that ships; the chart renders a friendly "no data yet"
+// note in its place.
+const CHART_DATA = [];
+const maxReports = CHART_DATA.length > 0 ? Math.max(...CHART_DATA.map((d) => d.reports)) : 0;
 
 export default function ReportingPage() {
   const [activeTab, setActiveTab] = useState('overview');

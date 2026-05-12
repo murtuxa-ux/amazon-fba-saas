@@ -367,31 +367,27 @@ const styles = {
   },
 };
 
+// Report template catalog. Categories are real (the backend supports each
+// of these via /reports/executive, /reports/weekly-summary, /report_generator
+// templates). lastGenerated is intentionally null until /reports/saved
+// returns the actual most-recent generation per template per org.
 const reportTemplates = [
-  { id: 1, icon: '📊', title: 'Monthly P&L', description: 'Comprehensive profit and loss statement', lastGenerated: '2025-03-15' },
-  { id: 2, icon: '📈', title: 'Weekly Performance', description: 'Sales, orders, and revenue trends', lastGenerated: '2025-03-22' },
-  { id: 3, icon: '📦', title: 'Inventory Health', description: 'Stock levels and inventory metrics', lastGenerated: '2025-03-20' },
-  { id: 4, icon: '🎯', title: 'PPC Campaign Summary', description: 'Ad spend, ACOS, and campaign performance', lastGenerated: '2025-03-18' },
-  { id: 5, icon: '👥', title: 'Client Overview', description: 'Account summary and client metrics', lastGenerated: '2025-03-10' },
-  { id: 6, icon: '🛍️', title: 'Product Analysis', description: 'Top products and performance breakdown', lastGenerated: '2025-03-17' },
-  { id: 7, icon: '🚚', title: 'Supplier Report', description: 'Supplier performance and costs', lastGenerated: '2025-02-28' },
-  { id: 8, icon: '💰', title: 'Cash Flow Statement', description: 'Cash in and outflows analysis', lastGenerated: '2025-03-16' },
+  { id: 1, icon: '📊', title: 'Monthly P&L', description: 'Comprehensive profit and loss statement', lastGenerated: null },
+  { id: 2, icon: '📈', title: 'Weekly Performance', description: 'Sales, orders, and revenue trends', lastGenerated: null },
+  { id: 3, icon: '📦', title: 'Inventory Health', description: 'Stock levels and inventory metrics', lastGenerated: null },
+  { id: 4, icon: '🎯', title: 'PPC Campaign Summary', description: 'Ad spend, ACOS, and campaign performance', lastGenerated: null },
+  { id: 5, icon: '👥', title: 'Client Overview', description: 'Account summary and client metrics', lastGenerated: null },
+  { id: 6, icon: '🛍️', title: 'Product Analysis', description: 'Top products and performance breakdown', lastGenerated: null },
+  { id: 7, icon: '🚚', title: 'Supplier Report', description: 'Supplier performance and costs', lastGenerated: null },
+  { id: 8, icon: '💰', title: 'Cash Flow Statement', description: 'Cash in and outflows analysis', lastGenerated: null },
 ];
 
-const generatedReportsMock = [
-  { id: 1, name: 'February P&L Report', type: 'Monthly P&L', dateRange: 'Feb 1 - Feb 28, 2025', generatedBy: 'John Doe', status: 'Ready', createdAt: '2025-03-01' },
-  { id: 2, name: 'Week 12 Performance', type: 'Weekly Performance', dateRange: 'Mar 17 - Mar 23, 2025', generatedBy: 'System', status: 'Ready', createdAt: '2025-03-24' },
-  { id: 3, name: 'March Inventory Check', type: 'Inventory Health', dateRange: 'Mar 1 - Mar 29, 2025', generatedBy: 'Jane Smith', status: 'Generating', createdAt: '2025-03-29' },
-  { id: 4, name: 'Q1 PPC Analysis', type: 'PPC Campaign Summary', dateRange: 'Jan 1 - Mar 29, 2025', generatedBy: 'John Doe', status: 'Ready', createdAt: '2025-03-25' },
-  { id: 5, name: 'Client Summary March', type: 'Client Overview', dateRange: 'Mar 1 - Mar 29, 2025', generatedBy: 'System', status: 'Failed', createdAt: '2025-03-28' },
-];
-
-const scheduledReportsMock = [
-  { id: 1, type: 'Monthly P&L', frequency: 'Monthly', nextRun: '2025-04-01', recipients: 'john@example.com, jane@example.com', active: true },
-  { id: 2, type: 'Weekly Performance', frequency: 'Weekly', nextRun: '2025-03-31', recipients: 'john@example.com', active: true },
-  { id: 3, type: 'Inventory Health', frequency: 'Daily', nextRun: '2025-03-30', recipients: 'alerts@example.com', active: false },
-  { id: 4, type: 'PPC Campaign Summary', frequency: 'Weekly', nextRun: '2025-04-05', recipients: 'marketing@example.com', active: true },
-];
+// Generated-report history and schedule list — populate from
+// /reports/saved and /reports/scheduled when those endpoints ship.
+// Until then, empty (instead of fake "February P&L by John Doe" rows
+// every customer sees).
+const generatedReportsMock = [];
+const scheduledReportsMock = [];
 
 const availableModules = [
   { id: 1, name: 'Revenue Chart', icon: '📊' },
