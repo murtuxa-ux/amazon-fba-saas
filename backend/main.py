@@ -129,6 +129,15 @@ app.add_middleware(
 # and Sentry events correlate across the request lifecycle.
 app.add_middleware(RequestIDMiddleware)
 
+# Payload size cap (§2.5). Rejects requests with Content-Length over
+# 1 MB at the middleware layer with a 413, so oversized bodies don't
+# reach the JSON parser / DB and surface as 500s. Multipart upload
+# routes are allowlisted in payload_size_middleware.py. Wired BEFORE
+# SecurityHeadersMiddleware so the 413 response passes back through
+# the headers middleware on the way out and receives security headers.
+from payload_size_middleware import PayloadSizeLimitMiddleware  # noqa: E402
+app.add_middleware(PayloadSizeLimitMiddleware)
+
 # Security headers — six defensive HTTP headers on every response.
 # See backend/security_middleware.py for the rationale per header.
 # Starlette runs middleware in reverse order of registration, so this
