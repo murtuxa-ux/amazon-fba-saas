@@ -114,132 +114,53 @@ export default function AIToolsPage() {
   };
 
   const handleRunTool = async (toolId) => {
+    // Only profit-calculator is genuinely client-side math; the rest
+    // would each hit a separate AI backend endpoint that hasn't been
+    // mapped from this UI yet. Show a polite "not yet wired" banner
+    // instead of fabricating results.
+    //
+    // Legacy behavior: generateMockResults() returned hardcoded fake
+    // "Ergonomic Wireless Mouse" optimization, fake keyword volumes
+    // (45,600 searches for "wireless mouse"), fake PPC bids, fake
+    // review sentiment percentages, fake demand curves. Every customer
+    // saw the same answer regardless of input. Dispatch §62: "Never
+    // silently fall back to mock data."
+    if (toolId !== 'profit-calculator') {
+      setResults(null);
+      if (typeof window !== 'undefined') {
+        window.alert(
+          'This AI tool is not yet wired to the backend. The profit calculator ' +
+          'works today; the rest are tracked in docs/api-endpoint-gaps.md.',
+        );
+      }
+      return;
+    }
+
     setLoading(true);
     setTimeout(() => {
-      const mockResults = generateMockResults(toolId, inputs);
-      setResults(mockResults);
+      const buyPrice = parseFloat(inputs.buyPrice) || 0;
+      const sellPrice = parseFloat(inputs.sellPrice) || 0;
+      const weight = parseFloat(inputs.weight) || 0;
+      const referralFee = sellPrice * 0.15;
+      const fulfillmentFee = weight <= 0.5 ? 3.22 : weight <= 1 ? 3.6 : 3.99;
+      const storageFee = 0.87;
+      const totalCogs = buyPrice + referralFee + fulfillmentFee + storageFee;
+      const profit = sellPrice - totalCogs;
+      const roi = buyPrice > 0 ? ((profit / buyPrice) * 100).toFixed(1) : '0.0';
+      const margin = sellPrice > 0 ? ((profit / sellPrice) * 100).toFixed(1) : '0.0';
+      setResults({
+        buyPrice,
+        sellPrice,
+        referralFee: referralFee.toFixed(2),
+        fulfillmentFee: fulfillmentFee.toFixed(2),
+        storageFee: storageFee.toFixed(2),
+        totalCogs: totalCogs.toFixed(2),
+        profit: profit.toFixed(2),
+        roi,
+        margin,
+      });
       setLoading(false);
-    }, 1200);
-  };
-
-  const generateMockResults = (toolId, inputs) => {
-    switch (toolId) {
-      case 'listing-optimizer':
-        return {
-          original: {
-            title: 'Wireless Mouse',
-            bullets: ['Wireless', 'Ergonomic'],
-            score: 58,
-          },
-          optimized: {
-            title: 'Ergonomic Wireless Mouse with USB Receiver - 2.4GHz Precision Tracking',
-            bullets: [
-              'Wireless 2.4GHz connection with 40ft range',
-              'Ergonomic contoured design reduces wrist strain',
-              'Precision optical sensor with 6 adjustable DPI levels',
-              'Long battery life up to 18 months on 2 AA batteries',
-              'Compatible with Windows, Mac, and Linux systems',
-            ],
-            score: 92,
-            keywords: ['wireless mouse', 'ergonomic mouse', 'USB receiver', 'precision tracking'],
-          },
-        };
-      case 'keyword-generator':
-        return {
-          keywords: [
-            { keyword: 'wireless mouse', volume: 45600, competition: 82, relevance: 98 },
-            { keyword: 'ergonomic mouse wireless', volume: 18200, competition: 64, relevance: 95 },
-            { keyword: 'USB mouse', volume: 28900, competition: 76, relevance: 87 },
-            { keyword: 'wireless ergonomic mouse', volume: 12400, competition: 71, relevance: 94 },
-            { keyword: 'optical mouse wireless', volume: 9800, competition: 58, relevance: 91 },
-            { keyword: 'precision mouse', volume: 15200, competition: 68, relevance: 89 },
-          ],
-        };
-      case 'ppc-calculator':
-        return {
-          targetACoS: inputs.targetACoS || 25,
-          conversionRate: inputs.conversionRate || 8,
-          aov: inputs.aov || 35,
-          recommendedBid: 0.68,
-          dailyBudget: 45.00,
-          projectedSales: 1850,
-          projectedClicks: 250,
-          breakdown: {
-            avgCPC: 0.18,
-            estimatedCPA: 4.50,
-            maxBid: 0.92,
-          },
-        };
-      case 'review-analyzer':
-        return {
-          sentiment: {
-            positive: 78,
-            neutral: 14,
-            negative: 8,
-            avgRating: 4.3,
-          },
-          topComplaints: [
-            { issue: 'Battery life shorter than expected', mentions: 32 },
-            { issue: 'Connectivity drops occasionally', mentions: 18 },
-            { issue: 'Mouse wheel inconsistent', mentions: 11 },
-          ],
-          topPraises: [
-            { praise: 'Great ergonomic design', mentions: 124 },
-            { praise: 'Excellent value for price', mentions: 95 },
-            { praise: 'Smooth and responsive', mentions: 87 },
-          ],
-          suggestions: [
-            'Improve battery technology for longer runtime',
-            'Enhance wireless stability and connection',
-            'Consider redesigning mouse wheel mechanism',
-          ],
-        };
-      case 'profit-calculator':
-        const buyPrice = parseFloat(inputs.buyPrice) || 12;
-        const sellPrice = parseFloat(inputs.sellPrice) || 29.99;
-        const weight = parseFloat(inputs.weight) || 0.3;
-        const referralFee = sellPrice * 0.15;
-        const fulfillmentFee = weight <= 0.5 ? 3.22 : weight <= 1 ? 3.6 : weight <= 1.5 ? 3.99 : 3.99;
-        const storageFee = 0.87;
-        const totalCogs = buyPrice + referralFee + fulfillmentFee + storageFee;
-        const profit = sellPrice - totalCogs;
-        const roi = ((profit / buyPrice) * 100).toFixed(1);
-        const margin = ((profit / sellPrice) * 100).toFixed(1);
-
-        return {
-          buyPrice,
-          sellPrice,
-          referralFee: referralFee.toFixed(2),
-          fulfillmentFee: fulfillmentFee.toFixed(2),
-          storageFee: storageFee.toFixed(2),
-          totalCogs: totalCogs.toFixed(2),
-          profit: profit.toFixed(2),
-          roi,
-          margin,
-        };
-      case 'demand-forecaster':
-        return {
-          currentMonthDemand: 1240,
-          projectedMonthDemand: 1450,
-          growthRate: 16.9,
-          seasonality: [
-            { month: 'Jan', demand: 1200 },
-            { month: 'Feb', demand: 1150 },
-            { month: 'Mar', demand: 1240 },
-            { month: 'Apr', demand: 1380 },
-            { month: 'May', demand: 1520 },
-            { month: 'Jun', demand: 1680 },
-            { month: 'Jul', demand: 1450 },
-          ],
-          recommendations: {
-            inventory: 'Maintain 30-45 days of inventory',
-            restocking: 'Plan for 18% increase in May-June',
-            bufferStock: '15% safety stock recommended',
-          },
-        };
-      default:
-        return null;
-    }
+    }, 200);
   };
 
   const handleExportCSV = () => {
