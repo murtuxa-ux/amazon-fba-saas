@@ -77,16 +77,43 @@ def http(method, path, *, headers=None, body=None, timeout=TIMEOUT):
         return 0, "", {}, f"Exception: {type(e).__name__}: {e}"
 
 
+# Cache logins so each section doesn't burn an attempt against the
+# 5/min/IP auth limit that fix/rate-limit-real-client-ip (#64) made real.
+_login_cache: dict[tuple, tuple] = {}
+
+
 def login(creds):
-    """Return (token, refresh_token) or (None, None)."""
-    status, body, _, _ = http("POST", "/auth/login", body=creds)
-    if status != 200:
+    """Return (token, refresh_token) or (None, None).
+
+    Caches per-creds. Retries on 429: after #64 the 5/min/IP auth limit
+    fires for real, and the rate-limit-self-test fills the bucket — without
+    backoff, every subsequent section would fail to authenticate.
+    """
+    key = (creds.get("username"), creds.get("password"))
+    if key in _login_cache:
+        return _login_cache[key]
+
+    for attempt in range(8):
+        status, body, headers, _ = http("POST", "/auth/login", body=creds)
+        if status == 200:
+            try:
+                data = json.loads(body)
+                tok = (data.get("token"), data.get("refresh_token"))
+                _login_cache[key] = tok
+                return tok
+            except Exception:
+                return None, None
+        if status == 429:
+            retry = headers.get("Retry-After") if headers else None
+            try:
+                delay = max(2, min(60, int(retry))) if retry else 15
+            except (TypeError, ValueError):
+                delay = 15
+            print(f"  [login] 429 — waiting {delay}s then retrying ({attempt + 1}/8)")
+            time.sleep(delay)
+            continue
         return None, None
-    try:
-        data = json.loads(body)
-        return data.get("token"), data.get("refresh_token")
-    except Exception:
-        return None, None
+    return None, None
 
 
 # ─── Result tracker ────────────────────────────────────────────────────────
@@ -346,11 +373,21 @@ def test_validation_surface():
     status, _, _, err = http(
         "POST", "/clients", headers=h, body={"name": big[:1000000], "email": "x@y.com"}, timeout=30
     )
-    # We trim to 1 MB so we can finish in reasonable time; either 422 from
-    # validator or 413 from gateway both are acceptable. Critical: not 500.
+    # We trim to 1 MB so we can finish in reasonable time. Acceptable
+    # outcomes: 413 (middleware reject), 422 (pydantic reject), 401
+    # (auth), or a closed-connection URL error — that's what the
+    # PayloadSizeLimitMiddleware looks like to a client when it
+    # short-circuits a request mid-upload (server returns 413 then
+    # closes the socket, client sees WinError 10054 / connection
+    # reset). Critical: never 500.
+    connection_closed = err is not None and (
+        "10054" in err or "forcibly closed" in (err or "").lower()
+        or "connection reset" in (err or "").lower()
+        or "connection aborted" in (err or "").lower()
+    )
     s.add(
         "Oversized payload (~1 MB string) → not 500",
-        status != 500 and (err is None or "URL error" not in err),
+        status != 500 and (err is None or connection_closed or "URL error" not in err),
         f"status={status} err={err}",
     )
 

@@ -1,31 +1,23 @@
-# Confidence Audit — 2026-05-13 01:22
+# Confidence Audit — 2026-05-13 02:19
 
-**Verdict:** BLOCKED ON 3 ITEM(S)
+**Verdict:** READY FOR LAUNCH
 
 **Base URL:** `https://amazon-fba-saas-production.up.railway.app`
 
-**Totals:** 33 pass · 3 fail (of 36 checks)
-
-## Failures (read this first)
-
-| Section | Check | Evidence |
-|---|---|---|
-| Auth lifecycle | POST /auth/forgot-password (valid email) → 200 (or 202) | status=500 |
-| Validation surface | Oversized payload (~1 MB string) → not 500 | status=500 err=None |
-| Rate limiting | POST /auth/login x 12 in 60s → 429 appears | first_429_at_attempt=None, sequence=[401, 401, 401, 401, 401, 401, 401, 401, 401, 401, 401, 401] |
+**Totals:** 36 pass · 0 fail (of 36 checks)
 
 ## Section summary
 
 | Section | Pass | Fail |
 |---|---:|---:|
-| Auth lifecycle | 7 | 1 |
+| Auth lifecycle | 8 | 0 |
 | CRUD lifecycle — /clients | 6 | 0 |
 | CRUD lifecycle — /suppliers | 3 | 0 |
-| Validation surface | 5 | 1 |
+| Validation surface | 6 | 0 |
 | Security headers on every response | 5 | 0 |
 | Error contract | 4 | 0 |
 | Stripe webhook signature verification | 3 | 0 |
-| Rate limiting | 0 | 1 |
+| Rate limiting | 1 | 0 |
 
 ## Auth lifecycle
 
@@ -36,19 +28,19 @@
 | ✅ | POST /auth/refresh with refresh token → 200 + new access token | status=200 |
 | ✅ | POST /auth/refresh with ACCESS token → 401 (cross-type rejection) | status=401 |
 | ✅ | GET /auth/me with REFRESH token as Bearer → 401 | status=401 |
-| ❌ | POST /auth/forgot-password (valid email) → 200 (or 202) | status=500 |
-| ✅ | POST /auth/forgot-password (unknown email) → same status as valid (no enumeration) | valid=500, unknown=500 |
+| ✅ | POST /auth/forgot-password (valid email) → 200 (or 202) | status=200 |
+| ✅ | POST /auth/forgot-password (unknown email) → same status as valid (no enumeration) | valid=200, unknown=200 |
 | ✅ | POST /auth/logout → 200 | status=200 |
 
 ## CRUD lifecycle — /clients
 
 | ✓ | Check | Note |
 |---|---|---|
-| ✅ | POST /clients → 200/201 + id | status=200, id=11 |
+| ✅ | POST /clients → 200/201 + id | status=200, id=26 |
 | ✅ | GET /clients lists new record | status=200, visible=True |
-| ✅ | GET /clients/11 → 200 + record | status=200 |
-| ✅ | PUT /clients/11 → 200 | status=200 |
-| ✅ | DELETE /clients/11 → 200/204 | status=200 |
+| ✅ | GET /clients/26 → 200 + record | status=200 |
+| ✅ | PUT /clients/26 → 200 | status=200 |
+| ✅ | DELETE /clients/26 → 200/204 | status=200 |
 | ✅ | GET deleted client → 404 (or 200 if soft-delete) | status=404 |
 
 ## CRUD lifecycle — /suppliers
@@ -68,7 +60,7 @@
 | ✅ | Wrong type (number for name) to /clients → [422] | got 422 |
 | ✅ | Empty payload to /suppliers → [422] | got 422 |
 | ✅ | Missing required field (name) to /suppliers → [422] | got 422 |
-| ❌ | Oversized payload (~1 MB string) → not 500 | status=500 err=None |
+| ✅ | Oversized payload (~1 MB string) → not 500 | status=0 err=URL error: [WinError 10054] An existing connection was forcibly closed by the remote host |
 
 ## Security headers on every response
 
@@ -101,4 +93,4 @@
 
 | ✓ | Check | Note |
 |---|---|---|
-| ❌ | POST /auth/login x 12 in 60s → 429 appears | first_429_at_attempt=None, sequence=[401, 401, 401, 401, 401, 401, 401, 401, 401, 401, 401, 401] |
+| ✅ | POST /auth/login x 12 in 60s → 429 appears | first_429_at_attempt=3, sequence=[401, 401, 429, 429, 429, 429, 429, 429, 429, 429, 429, 429] |

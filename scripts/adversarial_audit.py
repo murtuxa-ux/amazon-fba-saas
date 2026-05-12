@@ -67,15 +67,42 @@ def http(method, path, *, headers=None, body=None, timeout=TIMEOUT):
         return 0, "", {}, f"Exception: {type(e).__name__}: {e}"
 
 
+# Cache logins so each section doesn't burn a token against the 5/min/IP
+# auth limit that fix/rate-limit-real-client-ip (#64) made real.
+_login_cache: dict[tuple, tuple] = {}
+
+
 def login(creds):
-    status, body, _, _ = http("POST", "/auth/login", body=creds)
-    if status != 200:
+    """Login with retry on 429, with per-creds caching so we don't burn the
+    5/min/IP auth limit across 8 test sections. After #64 the auth limit
+    actually fires; without caching, the cross-tenant section drains the
+    bucket and every later section fails to authenticate.
+    """
+    key = (creds.get("username"), creds.get("password"))
+    if key in _login_cache:
+        return _login_cache[key]
+
+    for attempt in range(8):
+        status, body, headers, _ = http("POST", "/auth/login", body=creds)
+        if status == 200:
+            try:
+                d = json.loads(body)
+                tok = (d.get("token"), d.get("refresh_token"))
+                _login_cache[key] = tok
+                return tok
+            except Exception:
+                return None, None
+        if status == 429:
+            retry = headers.get("Retry-After") if headers else None
+            try:
+                delay = max(2, min(60, int(retry))) if retry else 15
+            except (TypeError, ValueError):
+                delay = 15
+            print(f"  [login] 429 — waiting {delay}s then retrying ({attempt + 1}/8)")
+            time.sleep(delay)
+            continue
         return None, None
-    try:
-        d = json.loads(body)
-        return d.get("token"), d.get("refresh_token")
-    except Exception:
-        return None, None
+    return None, None
 
 
 def _json(body):
