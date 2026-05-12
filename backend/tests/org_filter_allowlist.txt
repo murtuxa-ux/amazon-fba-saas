@@ -54,9 +54,9 @@ backend/signup.py:259     # reason: /api/auth/verify — User lookup by id from 
 backend/signup.py:296     # reason: /api/auth/resend-verification — User lookup by email (UNIQUE) for unauthenticated re-issuance of verification token
 backend/onboarding.py:207 # reason: /api/onboarding/invite — pre-existence check on User.email (UNIQUE, global) before issuing invite; cross-org check by design (UNIQUE constraint enforces no two orgs can claim same email)
 backend/onboarding.py:256 # reason: /api/onboarding/accept-invite — TeamInvite lookup by token_hash (UNIQUE) is pre-auth (caller has invite link but no JWT yet); token+expiry+used_at are the authoritative scope
-backend/main.py:588       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
-backend/main.py:645       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
-backend/main.py:696       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
+backend/main.py:593       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
+backend/main.py:655       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
+backend/main.py:706       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
 backend/main.py:255       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
 backend/ppc_action_plan.py:962  # reason: custom JWT decode route — fetches User by uid from token before any tenant_session priming, identical to get_current_user pattern
 backend/websocket_manager.py:221  # reason: WS handshake — fetches User by id from JWT subprotocol token before connection is admitted; runs in WS lifecycle pre-tenant_session, mirrors get_current_user

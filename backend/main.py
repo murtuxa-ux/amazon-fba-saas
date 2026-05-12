@@ -582,7 +582,12 @@ FRONTEND_URL = "https://amazon-fba-saas.vercel.app"
 
 @app.post("/auth/forgot-password")
 @auth_rate_limit()
-def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = Depends(get_db)):
+def forgot_password(
+    request: Request,
+    response: Response,
+    data: ForgotPasswordInput,
+    db: Session = Depends(get_db),
+):
     """Generate a password reset token and send reset email"""
     email = data.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -626,7 +631,12 @@ def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = D
 
 @app.post("/auth/reset-password")
 @auth_rate_limit()
-def reset_password(request: Request, data: ResetPasswordInput, db: Session = Depends(get_db)):
+def reset_password(
+    request: Request,
+    response: Response,
+    data: ResetPasswordInput,
+    db: Session = Depends(get_db),
+):
     """Reset password using a valid reset token"""
     from auth import decode_token
 
