@@ -84,13 +84,46 @@ export default function RecommendationsPage() {
   const [competition, setCompetition] = useState('');
   const [dismissedAlerts, setDismissedAlerts] = useState(new Set());
 
+  // Fetch real recommendations from the backend. Three endpoints feed
+  // this page:
+  //   GET /recommendations           — ranked product recommendations
+  //   GET /recommendations/trending  — niche/category trend signals
+  //   (alerts module not yet shipped — alerts stays empty until a
+  //    /recommendations/alerts or /intelligence/alerts feed lands)
   useEffect(() => {
     const token = localStorage.getItem('ecomera_token');
-    if (token) {
-      setProducts(Array.isArray(mockProducts) ? mockProducts : []);
-      setNiches(Array.isArray(mockNiches) ? mockNiches : []);
-      setAlerts(Array.isArray(mockAlerts) ? mockAlerts : []);
-    }
+    if (!token) return;
+    setLoading(true);
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.allSettled([
+      fetch(`${BASE_URL}/recommendations`, { headers }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${BASE_URL}/recommendations/trending`, { headers }).then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([recRes, trendRes]) => {
+        if (recRes.status === 'fulfilled' && recRes.value) {
+          const data = recRes.value;
+          const list = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.recommendations)
+              ? data.recommendations
+              : Array.isArray(data?.products)
+                ? data.products
+                : [];
+          setProducts(list);
+        }
+        if (trendRes.status === 'fulfilled' && trendRes.value) {
+          const data = trendRes.value;
+          const list = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.trends)
+              ? data.trends
+              : Array.isArray(data?.niches)
+                ? data.niches
+                : [];
+          setNiches(list);
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filteredProducts = products.filter(p => {
@@ -122,11 +155,24 @@ export default function RecommendationsPage() {
   const visibleAlerts = alerts.filter(a => !dismissedAlerts.has(a.id));
 
   const handleRefresh = () => {
+    const token = localStorage.getItem('ecomera_token');
+    if (!token) return;
     setLoading(true);
-    setTimeout(() => {
-      setProducts(Array.isArray(mockProducts) ? mockProducts : []);
-      setLoading(false);
-    }, 1000);
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch(`${BASE_URL}/recommendations`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.recommendations)
+            ? data.recommendations
+            : Array.isArray(data?.products)
+              ? data.products
+              : [];
+        setProducts(list);
+      })
+      .finally(() => setLoading(false));
   };
 
   const handleAnalyze = (asin) => {

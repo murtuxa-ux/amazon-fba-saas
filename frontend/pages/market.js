@@ -59,13 +59,29 @@ export default function MarketPage() {
   const [keywords, setKeywords] = useState([]);
   const [priceData, setPriceData] = useState([]);
 
+  // Fetch real market data from the backend. The market_analyzer module
+  // exposes /market/overview (categories + bsr / price / reviews / growth)
+  // and /market/trends (keywords + price comparisons). Each runs through
+  // Keepa data per-org so two orgs see different numbers when both have
+  // scout history; empty state otherwise.
   useEffect(() => {
     const token = localStorage.getItem('ecomera_token');
-    if (token) {
-      setCategories(Array.isArray(mockCategories) ? mockCategories : []);
-      setKeywords(Array.isArray(mockKeywords) ? mockKeywords : []);
-      setPriceData(Array.isArray(mockPriceData) ? mockPriceData : []);
-    }
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.allSettled([
+      fetch(`${BASE_URL}/market/overview`, { headers }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${BASE_URL}/market/trends`, { headers }).then((r) => (r.ok ? r.json() : null)),
+    ]).then(([overviewRes, trendsRes]) => {
+      if (overviewRes.status === 'fulfilled' && overviewRes.value) {
+        const d = overviewRes.value;
+        setCategories(Array.isArray(d?.categories) ? d.categories : Array.isArray(d) ? d : []);
+        setPriceData(Array.isArray(d?.priceData) ? d.priceData : []);
+      }
+      if (trendsRes.status === 'fulfilled' && trendsRes.value) {
+        const d = trendsRes.value;
+        setKeywords(Array.isArray(d?.keywords) ? d.keywords : Array.isArray(d) ? d : []);
+      }
+    });
   }, []);
 
   const getTrendIcon = (trend) => {

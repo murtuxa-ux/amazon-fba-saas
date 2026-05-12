@@ -63,11 +63,27 @@ export default function CompetitorsPage() {
   const [expandedCompetitor, setExpandedCompetitor] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Fetch real competitor tracker data from /competitors/overview.
+  // The backend returns { competitors: [...] } where each row carries
+  // seller/url/rating/products/monthlyRevenue/monthlyOrders/threat.
+  // Empty list = empty state (no competitors tracked yet).
   useEffect(() => {
     const token = localStorage.getItem('ecomera_token');
-    if (token) {
-      setCompetitors(Array.isArray(mockCompetitors) ? mockCompetitors : []);
-    }
+    if (!token) return;
+    fetch(`${BASE_URL}/competitors/overview`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.competitors)
+            ? data.competitors
+            : [];
+        setCompetitors(list);
+      })
+      .catch(() => {});
   }, []);
 
   const getThreatColor = (level) => {
@@ -81,7 +97,9 @@ export default function CompetitorsPage() {
     setShowAddModal(false);
   };
 
-  const maxRevenue = Math.max(...competitors.map(c => c.monthlyRevenue));
+  const maxRevenue = competitors.length > 0
+    ? Math.max(...competitors.map((c) => c.monthlyRevenue || 0))
+    : 0;
   const yourRevenue = 95000;
 
   const renderTracker = () => (
