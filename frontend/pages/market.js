@@ -47,34 +47,11 @@ const styles = {
   noData: { padding: '48px 32px', textAlign: 'center', color: '#666666' },
 };
 
-const mockCategories = [
-  { name: 'Electronics', bsr: 45230, price: 28.99, reviews: 4.2, growth: 12, competition: 'High' },
-  { name: 'Home & Kitchen', bsr: 32145, price: 19.99, reviews: 4.4, growth: 18, competition: 'Medium' },
-  { name: 'Sports & Outdoors', bsr: 38920, price: 34.99, reviews: 4.3, growth: 8, competition: 'High' },
-  { name: 'Beauty & Personal Care', bsr: 22340, price: 24.99, reviews: 4.5, growth: 22, competition: 'High' },
-  { name: 'Toys & Games', bsr: 51200, price: 16.99, reviews: 4.1, growth: 5, competition: 'Medium' },
-  { name: 'Pet Supplies', bsr: 35670, price: 21.49, reviews: 4.4, growth: 28, competition: 'Medium' },
-  { name: 'Office Products', bsr: 40120, price: 12.99, reviews: 4.2, growth: 3, competition: 'Medium' },
-  { name: 'Automotive', bsr: 48900, price: 32.99, reviews: 4.0, growth: 10, competition: 'High' },
-  { name: 'Baby Products', bsr: 29450, price: 26.99, reviews: 4.6, growth: 15, competition: 'High' },
-  { name: 'Garden & Outdoor', bsr: 44320, price: 39.99, reviews: 4.3, growth: 20, competition: 'Medium' },
-];
-
-const mockKeywords = [
-  { keyword: 'wireless earbuds', volume: 45600, trend: 'up', change: 18, seasonality: 'Stable' },
-  { keyword: 'water bottle', volume: 38200, trend: 'stable', change: 5, seasonality: 'Slight Peak Dec' },
-  { keyword: 'laptop stand', volume: 22400, trend: 'up', change: 34, seasonality: 'Q4 Peak' },
-  { keyword: 'desk lamp LED', volume: 18900, trend: 'up', change: 26, seasonality: 'Stable' },
-  { keyword: 'phone case', volume: 62300, trend: 'stable', change: 2, seasonality: 'Stable' },
-];
-
-const mockPriceData = [
-  { asin: 'B0D1234567', product: 'Wireless Earbuds Pro', yourPrice: 29.99, avgCompetitor: 31.45, lowestPrice: 24.99, position: 'Mid-Range', action: 'Monitor' },
-  { asin: 'B0D2345678', product: 'Water Bottle 32oz', yourPrice: 18.99, avgCompetitor: 19.82, lowestPrice: 16.99, position: 'Competitive', action: 'Maintain' },
-  { asin: 'B0D3456789', product: 'Laptop Stand', yourPrice: 34.99, avgCompetitor: 36.20, lowestPrice: 29.99, position: 'Good', action: 'Monitor' },
-  { asin: 'B0D4567890', product: 'LED Desk Lamp', yourPrice: 24.99, avgCompetitor: 26.15, lowestPrice: 21.99, position: 'Good', action: 'Monitor' },
-  { asin: 'B0D5678901', product: 'Phone Case Protective', yourPrice: 12.99, avgCompetitor: 14.30, lowestPrice: 11.99, position: 'Excellent', action: 'Maintain' },
-];
+// Mock arrays zeroed during the 2026-05-12 mock-data purge. Real data
+// loads from /market/overview, /market/trends, /market/category/{cat}.
+const mockCategories = [];
+const mockKeywords = [];
+const mockPriceData = [];
 
 export default function MarketPage() {
   const [activeTab, setActiveTab] = useState('overview');

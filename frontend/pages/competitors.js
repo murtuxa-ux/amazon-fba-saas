@@ -51,37 +51,11 @@ const styles = {
   detailValue: { color: '#FFFFFF', fontSize: '12px', fontWeight: '500' },
 };
 
-const mockCompetitors = [
-  { id: 1, seller: 'TechHub Pro', url: 'amazon.com/TechHubPro', rating: 4.7, products: 248, monthlyRevenue: 125400, monthlyOrders: 3200, threat: 'High' },
-  { id: 2, seller: 'Smart Essentials', url: 'amazon.com/SmartEssentials', rating: 4.5, products: 156, monthlyRevenue: 89200, monthlyOrders: 2100, threat: 'High' },
-  { id: 3, seller: 'Quality Goods Store', url: 'amazon.com/QualityGoodsStore', rating: 4.8, products: 89, monthlyRevenue: 64500, monthlyOrders: 1600, threat: 'Medium' },
-  { id: 4, seller: 'Value Express', url: 'amazon.com/ValueExpress', rating: 4.3, products: 312, monthlyRevenue: 156800, monthlyOrders: 3900, threat: 'High' },
-  { id: 5, seller: 'Premium Picks', url: 'amazon.com/PremiumPicks', rating: 4.6, products: 67, monthlyRevenue: 45200, monthlyOrders: 1100, threat: 'Medium' },
-];
-
-const mockYourProduct = {
-  asin: 'B0D1234567',
-  title: 'Ergonomic Wireless Mouse with USB Receiver',
-  price: 29.99,
-  bsr: 1245,
-  reviews: 1832,
-  rating: 4.6,
-  images: 12,
-  aPlus: true,
-  bulletQuality: 92,
-};
-
-const mockCompetitorProduct = {
-  asin: 'B0D9876543',
-  title: 'Pro Wireless Mouse - Ergonomic Design',
-  price: 34.99,
-  bsr: 892,
-  reviews: 3204,
-  rating: 4.8,
-  images: 8,
-  aPlus: true,
-  bulletQuality: 85,
-};
+// Mock arrays zeroed during the 2026-05-12 mock-data purge. Real data
+// loads from /competitors/overview and /competitors/brand/{brand}.
+const mockCompetitors = [];
+const mockYourProduct = null;
+const mockCompetitorProduct = null;
 
 export default function CompetitorsPage() {
   const [activeTab, setActiveTab] = useState('tracker');

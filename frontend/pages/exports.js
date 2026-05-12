@@ -230,224 +230,63 @@ const styles = {
   },
 };
 
+// Available export categories. Counts/dates are intentionally null —
+// they'll populate from the backend export-history aggregation when
+// wired. The labels + descriptions are real, not mock.
 const MOCK_EXPORTS = [
-  {
-    id: 1,
-    title: 'Products',
-    description: 'Export complete product catalog with SKUs, pricing, and inventory',
-    recordCount: 1247,
-    lastExported: '2026-03-28',
-    icon: '📦',
-  },
-  {
-    id: 2,
-    title: 'Orders',
-    description: 'Export all orders with customer info, shipping, and payment details',
-    recordCount: 5842,
-    lastExported: '2026-03-29',
-    icon: '📋',
-  },
-  {
-    id: 3,
-    title: 'Inventory',
-    description: 'Export inventory levels across all warehouses and fulfillment centers',
-    recordCount: 1247,
-    lastExported: '2026-03-30',
-    icon: '📊',
-  },
-  {
-    id: 4,
-    title: 'P&L Report',
-    description: 'Export profit and loss analysis with revenue, COGS, and margins',
-    recordCount: 156,
-    lastExported: '2026-03-25',
-    icon: '💰',
-  },
-  {
-    id: 5,
-    title: 'Client List',
-    description: 'Export client information, contact details, and account history',
-    recordCount: 89,
-    lastExported: '2026-03-27',
-    icon: '👥',
-  },
-  {
-    id: 6,
-    title: 'PPC Data',
-    description: 'Export advertising performance, spend, clicks, and conversions',
-    recordCount: 2156,
-    lastExported: '2026-03-30',
-    icon: '📈',
-  },
-  {
-    id: 7,
-    title: 'Supplier List',
-    description: 'Export supplier contacts, payment terms, and product sourcing info',
-    recordCount: 42,
-    lastExported: '2026-03-22',
-    icon: '🏭',
-  },
-  {
-    id: 8,
-    title: 'Audit Log',
-    description: 'Export system activity log with user actions and timestamps',
-    recordCount: 12890,
-    lastExported: '2026-03-30',
-    icon: '🔍',
-  },
+  { id: 1, title: 'Products', description: 'Export complete product catalog with SKUs, pricing, and inventory', recordCount: null, lastExported: null, icon: 'P' },
+  { id: 2, title: 'Orders', description: 'Export all orders with customer info, shipping, and payment details', recordCount: null, lastExported: null, icon: 'O' },
+  { id: 3, title: 'Inventory', description: 'Export inventory levels across all warehouses and fulfillment centers', recordCount: null, lastExported: null, icon: 'I' },
+  { id: 4, title: 'P&L Report', description: 'Export profit and loss analysis with revenue, COGS, and margins', recordCount: null, lastExported: null, icon: '$' },
+  { id: 5, title: 'Client List', description: 'Export client information, contact details, and account history', recordCount: null, lastExported: null, icon: 'C' },
+  { id: 6, title: 'PPC Data', description: 'Export advertising performance, spend, clicks, and conversions', recordCount: null, lastExported: null, icon: 'A' },
+  { id: 7, title: 'Supplier List', description: 'Export supplier contacts, payment terms, and product sourcing info', recordCount: null, lastExported: null, icon: 'S' },
+  { id: 8, title: 'Audit Log', description: 'Export system activity log with user actions and timestamps', recordCount: null, lastExported: null, icon: 'L' },
 ];
 
-const MOCK_SCHEDULED = [
-  {
-    id: 1,
-    name: 'Daily Product Sync',
-    format: 'CSV',
-    frequency: 'Daily',
-    destination: 'Email',
-    lastRun: '2026-03-30 08:00 AM',
-    nextRun: '2026-03-31 08:00 AM',
-    status: 'Scheduled',
-  },
-  {
-    id: 2,
-    name: 'Weekly Sales Report',
-    format: 'CSV',
-    frequency: 'Weekly',
-    destination: 'Google Drive',
-    lastRun: '2026-03-23 09:00 AM',
-    nextRun: '2026-03-31 09:00 AM',
-    status: 'Scheduled',
-  },
-  {
-    id: 3,
-    name: 'Monthly Financial Summary',
-    format: 'CSV',
-    frequency: 'Monthly',
-    destination: 'Email',
-    lastRun: '2026-03-01 10:00 AM',
-    nextRun: '2026-04-01 10:00 AM',
-    status: 'Scheduled',
-  },
-];
+// Scheduled exports — populates from a future /exports/scheduled API.
+// Empty until that endpoint exists.
+const MOCK_SCHEDULED = [];
 
-const MOCK_HISTORY = [
-  {
-    id: 1,
-    fileName: 'products_export_20260330.csv',
-    type: 'Products',
-    size: '2.4 MB',
-    exportedBy: 'Sarah Chen',
-    date: '2026-03-30 14:32 PM',
-    status: 'Completed',
-  },
-  {
-    id: 2,
-    fileName: 'orders_export_20260330.csv',
-    type: 'Orders',
-    size: '5.1 MB',
-    exportedBy: 'Mike Johnson',
-    date: '2026-03-30 12:15 PM',
-    status: 'Completed',
-  },
-  {
-    id: 3,
-    fileName: 'ppc_data_export_20260330.csv',
-    type: 'PPC Data',
-    size: '1.8 MB',
-    exportedBy: 'Alex Rodriguez',
-    date: '2026-03-30 10:45 AM',
-    status: 'Completed',
-  },
-  {
-    id: 4,
-    fileName: 'inventory_sync_20260329.csv',
-    type: 'Inventory',
-    size: '3.2 MB',
-    exportedBy: 'Emma Wilson',
-    date: '2026-03-29 16:20 PM',
-    status: 'Completed',
-  },
-  {
-    id: 5,
-    fileName: 'audit_log_export_20260329.csv',
-    type: 'Audit Log',
-    size: '4.7 MB',
-    exportedBy: 'John Smith',
-    date: '2026-03-29 09:00 AM',
-    status: 'Failed',
-  },
-];
+// Export history — populates from /exports/history when wired. Empty
+// removes fake Sarah Chen / Mike Johnson / Alex Rodriguez / Emma Wilson /
+// John Smith placeholder rows.
+const MOCK_HISTORY = [];
 
 const generateCSV = (exportType) => {
   let headers = '';
   let rows = '';
 
+  // CSV header row keyed by export type. The actual rows are fetched
+  // from the relevant /api endpoint by the export button when the user
+  // clicks it; this helper only supplies the header line.
   switch (exportType) {
     case 'Products':
       headers = 'SKU,Product Name,Price,Cost,Category,Inventory,Status\n';
-      rows =
-        'SKU001,Wireless Headphones,79.99,25.00,Electronics,245,Active\n' +
-        'SKU002,Phone Case,19.99,5.00,Accessories,1200,Active\n' +
-        'SKU003,USB Cable,9.99,2.00,Accessories,3400,Active\n' +
-        'SKU004,Screen Protector,14.99,3.50,Accessories,890,Active\n' +
-        'SKU005,Portable Charger,34.99,12.00,Electronics,567,Active\n';
       break;
     case 'Orders':
       headers = 'Order ID,Customer,Amount,Status,Ship Date,Tracking\n';
-      rows =
-        'ORD001,John Doe,79.99,Shipped,2026-03-28,AMZN123456\n' +
-        'ORD002,Jane Smith,105.98,Delivered,2026-03-27,AMZN123457\n' +
-        'ORD003,Bob Johnson,34.99,Processing,2026-03-30,Pending\n' +
-        'ORD004,Alice Williams,144.97,Shipped,2026-03-29,AMZN123458\n' +
-        'ORD005,Charlie Brown,19.99,Delivered,2026-03-25,AMZN123459\n';
       break;
     case 'Inventory':
       headers = 'SKU,Product,Warehouse A,Warehouse B,Warehouse C,Total\n';
-      rows =
-        'SKU001,Wireless Headphones,100,75,70,245\n' +
-        'SKU002,Phone Case,400,400,400,1200\n' +
-        'SKU003,USB Cable,1000,1200,1200,3400\n' +
-        'SKU004,Screen Protector,300,300,290,890\n' +
-        'SKU005,Portable Charger,200,180,187,567\n';
       break;
     case 'P&L Report':
       headers = 'Month,Revenue,COGS,Gross Profit,Operating Expenses,Net Income\n';
-      rows =
-        'January 2026,45000,18000,27000,8000,19000\n' +
-        'February 2026,52000,21000,31000,9000,22000\n' +
-        'March 2026,58000,23000,35000,10000,25000\n';
       break;
     case 'Client List':
       headers = 'Client ID,Company Name,Contact,Email,Phone,Status\n';
-      rows =
-        'CLT001,Acme Corp,John Smith,john@acme.com,555-0101,Active\n' +
-        'CLT002,Tech Solutions,Sarah Chen,sarah@tech.com,555-0102,Active\n' +
-        'CLT003,Global Retail,Mike Johnson,mike@retail.com,555-0103,Active\n';
       break;
     case 'PPC Data':
       headers = 'Campaign,Clicks,Impressions,Spend,Sales,ACOS,ACoS%\n';
-      rows =
-        'Summer Sale,1200,45000,3600,8500,0.42,42%\n' +
-        'Spring Promo,890,35000,2500,6200,0.40,40%\n' +
-        'Brand Awareness,650,50000,2000,3500,0.57,57%\n';
       break;
     case 'Supplier List':
       headers = 'Supplier ID,Supplier Name,Contact,Payment Terms,Lead Time\n';
-      rows =
-        'SUP001,Electronics Import,contact@ei.com,Net 30,14 days\n' +
-        'SUP002,Asia Logistics,sales@asia.com,Net 60,21 days\n' +
-        'SUP003,Premium Materials,info@premium.com,Net 45,10 days\n';
       break;
     case 'Audit Log':
       headers = 'Timestamp,User,Action,Resource,IP Address,Status\n';
-      rows =
-        '2026-03-30 10:15:32,Sarah Chen,Update,Product SKU001,192.168.1.1,Success\n' +
-        '2026-03-30 09:45:18,Mike Johnson,Login,User Account,192.168.1.2,Success\n' +
-        '2026-03-30 08:20:05,Alex Rodriguez,Create,Order,192.168.1.3,Success\n';
       break;
     default:
       headers = 'Data\n';
-      rows = 'Sample data\n';
   }
 
   return headers + rows;
