@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
 
 const Dashboard = () => {
@@ -422,18 +423,46 @@ const Dashboard = () => {
     );
   };
 
-  // KPI Card Component
-  const KPICard = ({ title, value, isLoading, isCurrency = false, isROI = false }) => {
+  // KPI Card Component — whole card is a Link; hover/focus apply brand-gold
+  // affordance, mousedown gives tactile scale-down feedback. Border is 2px
+  // transparent at rest so the gold-border hover state introduces no layout
+  // shift.
+  const KPICard = ({ title, value, isLoading, isCurrency = false, isROI = false, href }) => {
+    const [isHover, setIsHover] = useState(false);
+    const [isFocus, setIsFocus] = useState(false);
+    const [isPressed, setIsPressed] = useState(false);
+    const active = isHover || isFocus;
     return (
-      <div
+      <Link
+        href={href}
+        onMouseEnter={() => setIsHover(true)}
+        onMouseLeave={() => { setIsHover(false); setIsPressed(false); }}
+        onMouseDown={() => setIsPressed(true)}
+        onMouseUp={() => setIsPressed(false)}
+        onFocus={() => setIsFocus(true)}
+        onBlur={() => setIsFocus(false)}
+        onKeyDown={(e) => {
+          if (e.key === ' ') {
+            e.preventDefault();
+            e.currentTarget.click();
+          }
+        }}
         style={{
+          display: 'block',
           background: '#111111',
-          border: '1px solid #1E1E1E',
+          border: `2px solid ${active ? '#FFD000' : 'transparent'}`,
           borderRadius: '8px',
           padding: '20px',
           flex: '1 1 calc(33.333% - 16px)',
           minWidth: '200px',
           textAlign: 'center',
+          color: 'inherit',
+          textDecoration: 'none',
+          cursor: 'pointer',
+          outline: 'none',
+          boxShadow: active ? '0 8px 24px rgba(255, 208, 0, 0.15)' : 'none',
+          transform: isPressed ? 'scale(0.99)' : (active ? 'scale(1.02)' : 'none'),
+          transition: 'all 200ms ease-out',
         }}
       >
         <div style={{ fontSize: '12px', color: '#888', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -450,7 +479,7 @@ const Dashboard = () => {
             value
           )}
         </div>
-      </div>
+      </Link>
     );
   };
 
@@ -548,12 +577,12 @@ const Dashboard = () => {
             justifyContent: 'space-between',
           }}
         >
-          <KPICard title="Total Revenue" value={kpiData.totalRevenue} isLoading={kpiLoading} isCurrency />
-          <KPICard title="Total Profit" value={kpiData.totalProfit} isLoading={kpiLoading} isCurrency />
-          <KPICard title="Avg ROI" value={kpiData.avgROI} isLoading={kpiLoading} isROI />
-          <KPICard title="Active Clients" value={kpiData.activeClients} isLoading={kpiLoading} />
-          <KPICard title="Products Hunted" value={kpiData.productsHunted} isLoading={kpiLoading} />
-          <KPICard title="Team Members" value={kpiData.teamMembers} isLoading={kpiLoading} />
+          <KPICard title="Total Revenue"   value={kpiData.totalRevenue}   isLoading={kpiLoading} isCurrency href="/finance" />
+          <KPICard title="Total Profit"    value={kpiData.totalProfit}    isLoading={kpiLoading} isCurrency href="/finance" />
+          <KPICard title="Avg ROI"         value={kpiData.avgROI}         isLoading={kpiLoading} isROI      href="/finance" />
+          <KPICard title="Active Clients"  value={kpiData.activeClients}  isLoading={kpiLoading}            href="/clients" />
+          <KPICard title="Products Hunted" value={kpiData.productsHunted} isLoading={kpiLoading}            href="/scout" />
+          <KPICard title="Team Members"    value={kpiData.teamMembers}    isLoading={kpiLoading}            href="/team" />
         </div>
       </div>
 
