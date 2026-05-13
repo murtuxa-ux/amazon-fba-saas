@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
+import PasswordStrength, { passwordValid } from '../components/PasswordStrength';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -618,6 +619,10 @@ export default function SettingsPage() {
   };
 
   const changePassword = async () => {
+    if (!passwordValid(securityForm.newPassword)) {
+      showToast('Password does not meet all requirements', 'error');
+      return;
+    }
     if (securityForm.newPassword !== securityForm.confirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
@@ -1392,11 +1397,12 @@ export default function SettingsPage() {
                         />
                       </div>
                     </div>
+                    <PasswordStrength password={securityForm.newPassword} />
                     <div style={styles.buttonGroup}>
                       <button
                         style={styles.button}
                         onClick={changePassword}
-                        disabled={loading}
+                        disabled={loading || !passwordValid(securityForm.newPassword) || securityForm.newPassword !== securityForm.confirmPassword}
                       >
                         {loading ? <span style={styles.loadingSpinner} /> : 'Change Password'}
                       </button>

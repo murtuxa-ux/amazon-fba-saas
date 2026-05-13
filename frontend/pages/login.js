@@ -241,6 +241,17 @@ export default function LoginPage() {
         router.push('/');
       }, 500);
     } catch (err) {
+      // SP-API attestation: backend returns 403 detail="PASSWORD_EXPIRED"
+      // when password_changed_at is older than PASSWORD_MAX_AGE_DAYS.
+      // Redirect to the forced-rotation page; user cannot proceed without
+      // setting a new password that meets the current policy.
+      if (err && err.message === 'PASSWORD_EXPIRED') {
+        router.push({
+          pathname: '/change-password',
+          query: { forced: 'true', username: submittedEmail },
+        });
+        return;
+      }
       setError(err.message || 'Login failed. Please check your credentials.');
       setLoading(false);
     }

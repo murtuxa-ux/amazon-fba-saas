@@ -62,7 +62,7 @@ def test_signup_creates_org_and_owner_user(client, db_session):
         json={
             "org_name": "Acme Corp",
             "email": "founder@acme-corp.io",
-            "password": "AcmePass2026",
+            "password": "AcmeP@ss2026",
             "name": "Jane Founder",
         },
     )
@@ -106,13 +106,13 @@ def test_signup_duplicate_email_returns_generic_message(client, db_session):
     payload_a = {
         "org_name": "First Co",
         "email": "dup@signup-test.io",
-        "password": "FirstPass123",
+        "password": "FirstP@ss123",
         "name": "First User",
     }
     payload_b = {
         "org_name": "Second Co",
         "email": "dup@signup-test.io",
-        "password": "SecondPass123",
+        "password": "SecondP@ss123",
         "name": "Second User",
     }
     a = client.post("/api/auth/signup", json=payload_a)
@@ -129,17 +129,23 @@ def test_signup_duplicate_email_returns_generic_message(client, db_session):
 
 
 def test_signup_rejects_weak_password(client):
-    """Pydantic field_validator rejects letter-only or digit-only passwords."""
+    """Post Phase A, weak passwords are rejected by validate_password() in
+    the route handler (400 with friendly detail), not by Pydantic
+    field_validator (422). Length is the first thing checked, so a 10-char
+    string fails on length even before complexity is examined."""
     resp = client.post(
         "/api/auth/signup",
         json={
             "org_name": "Weak Pass Co",
             "email": "weak@signup-test.io",
-            "password": "abcdefghij",  # no digit
+            "password": "abcdefghij",  # 10 chars, no digit, no symbol, no upper
             "name": "Weak User",
         },
     )
-    assert resp.status_code == 422, resp.text
+    # min_length=12 on Pydantic surfaces as 422 BEFORE the route runs.
+    # That's still rejection — the test's intent (weak passwords don't
+    # create accounts) is preserved.
+    assert resp.status_code in (400, 422), resp.text
 
 
 # ── /api/auth/verify ────────────────────────────────────────────────────────
@@ -268,7 +274,7 @@ def test_resend_verification_invalidates_prior_tokens(client, db_session):
         json={
             "org_name": "Resend Co",
             "email": "resend@signup-test.io",
-            "password": "ResendPass123",
+            "password": "ResendP@ss123",
             "name": "Resend User",
         },
     )
@@ -358,7 +364,7 @@ def test_signup_email_disabled_does_not_break_signup(client, db_session, monkeyp
         json={
             "org_name": "Email Off Co",
             "email": "emailoff@signup-test.io",
-            "password": "EmailOff123",
+            "password": "EmailOff@123",
             "name": "Email Off",
         },
     )

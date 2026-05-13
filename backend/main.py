@@ -22,7 +22,7 @@ from models import (
 from auth import (
     tenant_session, require_role, hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
-    get_org_scoped_query,
+    get_org_scoped_query, validate_password,
 )
 from ai_engine import calculate_score, get_decision, get_risk_level
 from fba_scoring import compute_fba_score, compute_profit
@@ -334,6 +334,18 @@ class ChangePasswordInput(BaseModel):
     new_password: str
 
 
+class ForceRotateInput(BaseModel):
+    """SP-API password rotation — used when /auth/login returns
+    PASSWORD_EXPIRED. The user re-supplies their current credentials AND
+    a new policy-compliant password, all in one request, because they
+    don't have a session JWT yet (login was refused). On success the
+    response is shaped exactly like /auth/login so the frontend can
+    proceed straight to the dashboard."""
+    username: str
+    current_password: str
+    new_password: str
+
+
 class ClientInput(BaseModel):
     name: str
     email: Optional[str] = ""
@@ -454,6 +466,14 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated.")
 
+    # SP-API password attestation: refuse sessions whose password is older
+    # than PASSWORD_MAX_AGE_DAYS. Frontend keys off detail="PASSWORD_EXPIRED"
+    # to redirect to /change-password?forced=true. Migration 0010 backfills
+    # NOW() for existing rows so this never trips on the first deploy.
+    pwd_age = user.password_changed_at or user.created_at or _now()
+    if (_now() - pwd_age).days > settings.PASSWORD_MAX_AGE_DAYS:
+        raise HTTPException(status_code=403, detail="PASSWORD_EXPIRED")
+
     token = create_access_token({"user_id": user.id, "org_id": user.org_id})
     refresh_token = create_refresh_token({"user_id": user.id, "org_id": user.org_id})
 
@@ -490,6 +510,77 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
         # Nested user object for login.js consumers
         "user": user_data,
         "message": "Login successful",
+    }
+
+
+@app.post("/auth/force-rotate")
+@auth_rate_limit()
+def force_rotate_password(
+    request: Request,
+    response: Response,
+    data: ForceRotateInput,
+    db: Session = Depends(get_db),
+):
+    """Forced password rotation for users whose /auth/login returned
+    PASSWORD_EXPIRED. Verifies username + current_password (regardless of
+    age), enforces the new policy on new_password, writes the new hash
+    + password_changed_at, audits, and returns a session JWT shaped like
+    /auth/login. Rate-limited via auth bucket — brute-forcing this is
+    equivalent to brute-forcing /auth/login.
+
+    Anti-enumeration: same 401 for unknown user vs wrong current password.
+    """
+    identifier = (data.username or "").strip().lower()
+    if not identifier or not data.current_password or not data.new_password:
+        raise HTTPException(status_code=400, detail="Username, current password, and new password are required.")
+    user = db.query(User).filter(User.username == identifier).first()
+    if not user:
+        user = db.query(User).filter(User.email == identifier).first()
+    if user is None or not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is deactivated.")
+
+    ok, reason = validate_password(data.new_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
+
+    user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = _now()
+    db.commit()
+    record_audit(
+        db, request, user,
+        action="user.password_change_forced_rotation", resource_type="user",
+        resource_id=user.id,
+    )
+
+    token = create_access_token({"user_id": user.id, "org_id": user.org_id})
+    refresh_token = create_refresh_token({"user_id": user.id, "org_id": user.org_id})
+
+    org_name = ""
+    try:
+        org = db.query(Organization).filter(Organization.id == user.org_id).first()
+        if org is not None:
+            org_name = org.name or ""
+    except Exception:
+        db.rollback()
+
+    safe_name = (user.name or user.username or "").strip()
+    user_data = {
+        "username": user.username,
+        "name": safe_name or user.username,
+        "role": user.role,
+        "email": user.email,
+        "avatar": user.avatar or (safe_name[:1].upper() if safe_name else "U"),
+        "org_id": user.org_id,
+        "org_name": org_name,
+    }
+    return {
+        "token": token,
+        "refresh_token": refresh_token,
+        **user_data,
+        "user": user_data,
+        "message": "Password rotated. You are now signed in.",
     }
 
 
@@ -618,11 +709,18 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    if len(data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    ok, reason = validate_password(data.new_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
 
     user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = _now()
     db.commit()
+    record_audit(
+        db, request, user,
+        action="user.password_change", resource_type="user",
+        resource_id=user.id,
+    )
 
     return {"message": "Password has been reset successfully. You can now sign in.", "status": "success"}
 
@@ -667,12 +765,16 @@ def add_user(
 ):
     if db.query(User).filter(User.username == data.username.strip().lower()).first():
         raise HTTPException(status_code=400, detail="Username already exists.")
+    ok, reason = validate_password(data.password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
     org = db.query(Organization).filter(Organization.id == user.org_id).first()
     enforce_limit(db, org, "users")
     new_user = User(
         org_id=user.org_id,
         username=data.username.strip().lower(),
         password_hash=hash_password(data.password),
+        password_changed_at=_now(),
         name=data.name.strip(),
         email=data.email.strip(),
         role=data.role,
@@ -775,14 +877,24 @@ def delete_user(
 
 @app.post("/auth/change-password")
 def change_password(
+    request: Request,
     data: ChangePasswordInput,
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Current password incorrect.")
+    ok, reason = validate_password(data.new_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
     user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = _now()
     db.commit()
+    record_audit(
+        db, request, user,
+        action="user.password_change", resource_type="user",
+        resource_id=user.id,
+    )
     return {"status": "password changed"}
 
 

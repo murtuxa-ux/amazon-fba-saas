@@ -74,6 +74,10 @@ class User(Base):
     onboarding_completed = Column(Boolean, nullable=False, default=False)
     onboarding_step = Column(Integer, nullable=False, default=1)
     onboarding_completed_at = Column(DateTime, nullable=True)
+    # SP-API password attestation (§A): set every time the password hash is
+    # written; /auth/login refuses sessions whose password is older than
+    # PASSWORD_MAX_AGE_DAYS. Migration 0010 backfills NOW() for existing rows.
+    password_changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 

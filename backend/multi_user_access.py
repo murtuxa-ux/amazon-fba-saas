@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text, desc
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, require_role, hash_password, tenant_session
+from auth import get_current_user, require_role, hash_password, tenant_session, validate_password
 from models import User, Organization
 from database import get_db
 from audit_logs import record_audit
@@ -310,6 +310,9 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists in organization",
         )
+    ok, reason = validate_password(user_data.password)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
     # Create user
     new_user = User(
         org_id=current_user.org_id,
@@ -317,6 +320,7 @@ def create_user(
         email=user_data.email.lower(),
         username=user_data.username.lower(),
         password_hash=hash_password(user_data.password),
+        password_changed_at=datetime.utcnow(),
         role=user_data.role,
         avatar=user_data.avatar,
         is_active=True,
@@ -529,8 +533,13 @@ def reset_user_password(
             detail="User not found",
         )
 
+    ok, reason = validate_password(password_data.new_password)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+
     # Reset password
     user.password_hash = hash_password(password_data.new_password)
+    user.password_changed_at = datetime.utcnow()
     db.commit()
 
     record_audit(
@@ -611,8 +620,13 @@ def change_password(
             detail="New password must be different from current password",
         )
 
+    ok, reason = validate_password(password_data.new_password)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+
     # Update password
     current_user.password_hash = hash_password(password_data.new_password)
+    current_user.password_changed_at = datetime.utcnow()
     db.commit()
 
     record_audit(
