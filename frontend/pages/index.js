@@ -48,10 +48,12 @@ const Dashboard = () => {
         return;
       }
 
-      // Fetch user info (mock or from localStorage)
-      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      // BUG-02: AuthContext stores user under `ecomera_user` (see
+      // AuthContext.js:43). The old key 'user' never had a value,
+      // so the greeting fell back to "Welcome back, User" forever.
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('ecomera_user') : null;
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        try { setUser(JSON.parse(storedUser)); } catch {}
       }
 
       // Fetch all KPIs in parallel

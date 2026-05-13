@@ -335,11 +335,16 @@ function PnLStatementsTab() {
   }, [selectedClient]);
 
   const loadClients = async () => {
+    // BUG-10: /clients returns {count, clients: [...]} via the global
+    // camelCase fetch transformer (snake → camel: {count, clients}),
+    // NOT a flat array. The old `Array.isArray(data) ? data : []`
+    // always evaluated to [] so the modal dropdown was empty.
     const data = await fetchAPI('/clients');
-    setClients(Array.isArray(data) ? data : []);
-    if (Array.isArray(data) && data.length > 0) {
-      setSelectedClient(data[0].id);
-    }
+    const list = Array.isArray(data?.clients)
+      ? data.clients
+      : (Array.isArray(data) ? data : []);
+    setClients(list);
+    if (list.length > 0) setSelectedClient(list[0].id);
   };
 
   const loadPnLStatements = async () => {
@@ -355,11 +360,15 @@ function PnLStatementsTab() {
     setError('');
     setSuccess('');
 
+    // BUG-11: month + year must be sent as integers (the backend now
+    // validates ge/le bounds via Pydantic). The <input type="number">
+    // surfaces strings — parseInt before sending so a user who types
+    // "5" doesn't produce {month: "5", year: 5} server-side.
     const payload = {
       client_id: selectedClient,
       period: formData.period,
-      month: formData.month,
-      year: formData.year,
+      month: parseInt(formData.month, 10),
+      year: parseInt(formData.year, 10),
       revenue: parseFloat(formData.revenue) || 0,
       cogs: parseFloat(formData.cogs) || 0,
       ad_spend: parseFloat(formData.adSpend) || 0,

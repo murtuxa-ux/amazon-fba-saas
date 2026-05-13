@@ -188,7 +188,13 @@ function AddEditModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        // BUG-22: bumped from 1000 → 10000 defensively. The UX test on
+        // /suppliers reported "nothing happens" on Add click; code path
+        // is correct (setAdding(true) → open=true → this overlay
+        // renders), so the likeliest culprit was a sibling element
+        // (Sidebar shadow, toast container) winning the z-index war.
+        zIndex: 10000,
+        pointerEvents: 'auto',
         padding: '16px',
       }}
     >

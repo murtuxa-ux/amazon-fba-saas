@@ -13,6 +13,12 @@ export default function Products() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  // BUG-20: POST /products-pipeline requires assigned_to (user id).
+  // Loaded from /users/me on mount and used as the default assignment
+  // when an admin/manager creates a product. AuthContext's user blob
+  // doesn't include `id`, so we have to fetch.
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     asin: '',
     title: '',
@@ -32,6 +38,18 @@ export default function Products() {
   // Fetch products on mount
   useEffect(() => {
     fetchProducts();
+    // Resolve the current user's id so Add Product can default
+    // assigned_to. /users/me requires auth; if it fails the modal
+    // simply requires the user to pick someone explicitly later.
+    const token = localStorage.getItem('ecomera_token');
+    if (token) {
+      fetch(`${BASE_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => { if (data && data.id) setCurrentUserId(data.id); })
+        .catch(() => {});
+    }
   }, []);
 
   // Filter and sort products when data or filters change
@@ -178,18 +196,33 @@ export default function Products() {
   };
 
   const handleSaveProduct = async () => {
+    if (!formData.asin.trim() || !formData.title.trim()) {
+      alert('Please fill in ASIN and Title');
+      return;
+    }
+    // BUG-20: POST /products-pipeline requires assigned_to. Default to
+    // the currently-signed-in user (resolved at mount). If we still
+    // don't have it (network failed), warn rather than letting the
+    // server hand back a 422 the user can't act on.
+    if (!editingProduct && !currentUserId) {
+      alert('Could not determine your user account. Please refresh and try again.');
+      return;
+    }
+    // BUG-19: 15s timeout + AbortController so a wrong-route or hung
+    // backend never freezes the renderer with an unresolved promise.
+    setSubmitting(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      if (!formData.asin.trim() || !formData.title.trim()) {
-        alert('Please fill in ASIN and Title');
-        return;
-      }
-
       const token = localStorage.getItem('ecomera_token');
       const payload = {
         ...formData,
         cost: parseFloat(formData.cost) || 0,
         sell_price: parseFloat(formData.sell_price) || 0,
       };
+      if (!editingProduct) {
+        payload.assigned_to = currentUserId;
+      }
 
       const method = editingProduct ? 'PUT' : 'POST';
       const url = editingProduct
@@ -203,17 +236,29 @@ export default function Products() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
-        throw new Error(editingProduct ? 'Failed to update product' : 'Failed to add product');
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(
+          errBody.detail ||
+          (editingProduct ? 'Failed to update product' : 'Failed to add product')
+        );
       }
 
       await fetchProducts();
       handleCloseModal();
     } catch (err) {
-      alert(err.message || 'Error saving product');
+      if (err.name === 'AbortError') {
+        alert('Request timed out after 15 seconds. Please try again.');
+      } else {
+        alert(err.message || 'Error saving product');
+      }
       console.error('Save error:', err);
+    } finally {
+      clearTimeout(timeoutId);
+      setSubmitting(false);
     }
   };
 

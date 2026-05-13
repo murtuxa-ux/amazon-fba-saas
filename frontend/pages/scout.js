@@ -69,7 +69,10 @@ const ScoutPage = () => {
 
     try {
       const token = getToken();
-      const response = await fetch(`${BASE_URL}/scout`, {
+      // BUG-16: /scout is the CRUD endpoint (expects fully-populated
+      // product rows). /scout/lookup is the Keepa-enrichment endpoint
+      // that takes just an ASIN + domain and returns enriched fields.
+      const response = await fetch(`${BASE_URL}/scout/lookup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,7 +85,9 @@ const ScoutPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Scout failed: ${response.statusText}`);
+        // BUG-17: surface backend's detail field instead of "Scout failed:"
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(`Scout failed: ${errBody.detail || response.statusText}`);
       }
 
       const data = await response.json();
@@ -167,7 +172,9 @@ const ScoutPage = () => {
 
       for (let i = 0; i < asinList.length; i++) {
         try {
-          const response = await fetch(`${BASE_URL}/scout`, {
+          // BUG-16: /scout is the CRUD endpoint, /scout/lookup is the
+          // Keepa-enrichment endpoint. Same fix as the single-ASIN path.
+          const response = await fetch(`${BASE_URL}/scout/lookup`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

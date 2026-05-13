@@ -53,6 +53,8 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);   // BUG-23
+  const [confirmDelete, setConfirmDelete] = useState(null);  // BUG-23
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -125,6 +127,36 @@ export default function SuppliersPage() {
         );
       },
     },
+    // BUG-23: Edit / Delete row actions.
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'right',
+      render: (r) => (
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => setEditing(r)}
+            style={{
+              background: 'transparent', color: '#FFD000', border: '1px solid #FFD000',
+              padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
+            }}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(r)}
+            style={{
+              background: 'transparent', color: '#C86464', border: '1px solid #C86464',
+              padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
   ];
 
   const handleCreate = async (values) => {
@@ -136,6 +168,27 @@ export default function SuppliersPage() {
       approval_rate: Number(values.approvalRate) || 0,
       notes: values.notes || '',
     });
+    await refetch();
+  };
+
+  // BUG-23: row-level Edit/Delete. Used to be display-only.
+  const handleEdit = async (values) => {
+    if (!editing?.id) return;
+    await api.put(`/suppliers/${editing.id}`, {
+      name: values.name,
+      brand: values.brand || '',
+      contact: values.contact || '',
+      response_rate: Number(values.responseRate) || 0,
+      approval_rate: Number(values.approvalRate) || 0,
+      notes: values.notes || '',
+    });
+    await refetch();
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete?.id) return;
+    await api.delete(`/suppliers/${confirmDelete.id}`);
+    setConfirmDelete(null);
     await refetch();
   };
 
@@ -225,6 +278,38 @@ export default function SuppliersPage() {
           }}
           onCancel={() => setAdding(false)}
           submitLabel="Add Supplier"
+        />
+
+        {/* BUG-23: Edit modal */}
+        <AddEditModal
+          open={!!editing}
+          title="Edit Supplier"
+          initialValues={editing ? {
+            name: editing.name,
+            brand: editing.brand,
+            contact: editing.contact,
+            responseRate: editing.responseRate,
+            approvalRate: editing.approvalRate,
+            notes: editing.notes,
+          } : {}}
+          fields={fields}
+          onSubmit={async (values) => {
+            await handleEdit(values);
+            setEditing(null);
+          }}
+          onCancel={() => setEditing(null)}
+          submitLabel="Save Changes"
+        />
+
+        {/* BUG-23: Delete confirm */}
+        <ConfirmDialog
+          open={!!confirmDelete}
+          title="Delete supplier?"
+          message={`This will permanently remove '${confirmDelete?.name || ''}'. This cannot be undone.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(null)}
         />
       </div>
     </div>
