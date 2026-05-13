@@ -1,12 +1,39 @@
 # Python
 __pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
 
 # Next.js
 .next/
 node_modules/
+out/
+.vercel
 
 # Claude Code
 .claude/
+
+# Local-only artifacts (avoid accidental commits — see Sprint 3 hygiene
+# item 4). These accumulate in repo root from manual probes and don't
+# need version control.
+audit_report_*.json
+audit_report_*.txt
+login.json
+response.txt
+ci_failure.log
+failure.log
+backups/
+outputs/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
 
 # Engineering audit (private; move to gist later)
 Engineering_Audit_Brief.md

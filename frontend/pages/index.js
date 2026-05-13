@@ -631,6 +631,19 @@ const Dashboard = () => {
               <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#FFD700' }}>Products by Status</h3>
               {statusLoading ? (
                 <div style={{ textAlign: 'center', color: '#888' }}>Loading...</div>
+              ) : (statusData || []).reduce((s, x) => s + (Number(x.count) || 0), 0) === 0 ? (
+                // BUG-09 Sprint 3: empty-state replaces the lone-dot
+                // doughnut Chart.js renders when every count is 0.
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#888' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '8px', opacity: 0.4 }}>📦</div>
+                  <div style={{ fontWeight: 600, color: '#CCC', marginBottom: '4px' }}>
+                    No products yet
+                  </div>
+                  <div style={{ fontSize: '12px' }}>
+                    Add your first product from the{' '}
+                    <a href="/products" style={{ color: '#FFD700' }}>Products</a> page.
+                  </div>
+                </div>
               ) : (
                 <>
                   <DonutChart data={statusData} />
