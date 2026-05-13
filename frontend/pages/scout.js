@@ -67,6 +67,13 @@ const ScoutPage = () => {
     setSingleError('');
     setSingleResults(null);
 
+    // BUG-16/18 (Sprint 1.5): the Keepa-backed lookup takes ~6s on a
+    // good day and can stall on rate-limited weeks. Cap the wait at
+    // 20s so the user never sees an indefinite frozen state. The
+    // AbortError is caught below and surfaced as a friendly message.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     try {
       const token = getToken();
       // BUG-16: /scout is the CRUD endpoint (expects fully-populated
@@ -82,6 +89,7 @@ const ScoutPage = () => {
           asin: singleAsin.trim(),
           domain_id: singleDomain,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -90,12 +98,23 @@ const ScoutPage = () => {
         throw new Error(`Scout failed: ${errBody.detail || response.statusText}`);
       }
 
-      const data = await response.json();
+      // BUG-16 Sprint 1.5: tolerate {data:{...}} or {result:{...}}
+      // envelope variants so future backend shape changes don't
+      // silently produce "no result" rendering. The Keepa enrichment
+      // endpoint currently returns the flat object directly, but
+      // matching by `asin` presence is a robust unwrap.
+      const json = await response.json();
+      const data = (json && json.asin) ? json : (json?.data || json?.result || json);
       setSingleResults(data);
     } catch (error) {
-      setSingleError(error.message || 'Failed to scout ASIN');
+      if (error.name === 'AbortError') {
+        setSingleError('Lookup timed out after 20 seconds. Keepa may be slow — please try again.');
+      } else {
+        setSingleError(error.message || 'Failed to scout ASIN');
+      }
       console.error('Scout error:', error);
     } finally {
+      clearTimeout(timeoutId);
       setSingleLoading(false);
     }
   };
@@ -752,6 +771,32 @@ const ScoutPage = () => {
                 </button>
               </form>
             </div>
+
+            {/* BUG-18 Sprint 1.5: visible inline progress banner.
+                The button's "Scouting..." text alone wasn't enough
+                feedback during the 6+ second Keepa fetch — users
+                reported "no spinner, no error" because the button
+                state was easy to miss. This banner sits directly
+                above the results card and is unmissable. */}
+            {singleLoading && (
+              <div
+                style={{
+                  marginTop: '16px',
+                  padding: '12px 16px',
+                  background: '#1A1A1A',
+                  border: '1px solid #FFD000',
+                  borderRadius: '6px',
+                  color: '#FFD000',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <span style={spinnerStyle} />
+                Looking up <code style={{ color: '#FFFFFF' }}>{singleAsin}</code> on Keepa… this can take up to 10 seconds.
+              </div>
+            )}
 
             {/* Single Results */}
             {singleResults && (
