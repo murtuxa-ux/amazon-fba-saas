@@ -31,8 +31,12 @@ from datetime import datetime
 # CONFIG
 # ============================================================
 BASE_URL = "https://amazon-fba-saas-production.up.railway.app"
-USERNAME = "murtaza"
-PASSWORD = "Admin@2024"
+# Credentials default to the Day-1 seed values for local dev, but the
+# rotated prod password (post-Phase A SP-API attestation) is supplied via
+# env vars at runtime. AUDIT_JWT in env skips login entirely (see main()).
+# Mirrors scripts/verify_writer_live.py (PR #70).
+USERNAME = os.environ.get("AUDIT_USERNAME", "murtaza")
+PASSWORD = os.environ.get("AUDIT_PASSWORD", "Admin@2024")
 TIMEOUT = 15
 
 # ANSI colors for terminal output (Windows 10+ supports these)
