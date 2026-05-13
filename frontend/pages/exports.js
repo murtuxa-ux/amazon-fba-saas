@@ -389,8 +389,8 @@ export default function ExportsPage() {
                 <div style={styles.exportIcon}>{exp.icon}</div>
                 <h3 style={styles.exportTitle}>{exp.title}</h3>
                 <p style={styles.exportDescription}>{exp.description}</p>
-                <div style={styles.exportMeta}>📊 {exp.recordCount.toLocaleString()} records</div>
-                <div style={styles.exportMeta}>🕐 Last: {exp.lastExported}</div>
+                <div style={styles.exportMeta}>📊 {(exp.recordCount || 0).toLocaleString()} records</div>
+                <div style={styles.exportMeta}>🕐 Last: {exp.lastExported || 'Never'}</div>
                 <button
                   style={{ ...styles.buttonPrimary, marginTop: '16px', width: '100%' }}
                   onClick={() => handleExport(exp.title)}

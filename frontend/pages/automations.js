@@ -203,6 +203,10 @@ function getAuthHeaders() {
   };
 
   const getCronPreview = (cron) => {
+    // BUG-30: backend returns automation rules with null cron for
+    // event-triggered (non-scheduled) rules. The old `cron.split(...)`
+    // threw inside a .map and crashed the whole page.
+    if (!cron) return 'No schedule';
     const parts = cron.split(' ');
     if (parts.length !== 5) return 'Custom schedule';
 

@@ -510,11 +510,11 @@ function PerformanceChart({ data, metric, label }) {
             <rect x="150" y={yPos} width={barWidth} height="30" fill="#FFD700" rx="4" />
             {/* Name label */}
             <text x="10" y={yPos + 20} fontSize="12" fill="#CCCCCC" textAnchor="start">
-              {item.name.split(' ')[0]}
+              {(item.name || '').split(' ')[0] || '—'}
             </text>
             {/* Value label */}
             <text x={160 + barWidth} y={yPos + 20} fontSize="12" fill="#0A0A0A" fontWeight="600">
-              {item[metric].toLocaleString()}
+              {(item[metric] || 0).toLocaleString()}
             </text>
           </g>
         );
@@ -626,11 +626,11 @@ export default function TeamPage() {
       const newMember = {
         id: members.length + 1,
         ...inviteForm,
-        avatar: inviteForm.name
+        avatar: (inviteForm.name || '')
           .split(' ')
-          .map((n) => n[0])
+          .map((n) => (n && n[0]) || '')
           .join('')
-          .toUpperCase(),
+          .toUpperCase() || 'U',
         status: 'Active',
         lastActive: new Date().toLocaleString(),
       };
@@ -921,18 +921,28 @@ export default function TeamPage() {
             </div>
 
             <div style={styles.performanceGrid}>
-              {/* Top Performer Card */}
-              <div style={styles.topPerformerCard}>
-                <div style={styles.topPerformerLabel}>Top Performer</div>
-                <div style={styles.topPerformerName}>{topPerformer.name}</div>
-                <div style={styles.topPerformerScore}>{topPerformer.tasksCompleted}</div>
-                <div style={{ fontSize: '12px', color: '#999999', marginBottom: '16px' }}>Tasks Completed</div>
-                <div style={styles.topPerformerStats}>
-                  <div style={styles.statItem}>Products Scouted: {topPerformer.scoutedProducts}</div>
-                  <div style={styles.statItem}>Orders Processed: {topPerformer.ordersProcessed}</div>
-                  <div style={styles.statItem}>Revenue Managed: ${(topPerformer.revenueManaged / 1000).toFixed(0)}K</div>
+              {/* Top Performer Card — guarded against undefined data
+                  shape (BUG-34): when the performance dataset is empty,
+                  topPerformer is undefined and chained reads crashed
+                  the whole /team page. */}
+              {topPerformer ? (
+                <div style={styles.topPerformerCard}>
+                  <div style={styles.topPerformerLabel}>Top Performer</div>
+                  <div style={styles.topPerformerName}>{topPerformer.name || '—'}</div>
+                  <div style={styles.topPerformerScore}>{(topPerformer.tasksCompleted || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: '12px', color: '#999999', marginBottom: '16px' }}>Tasks Completed</div>
+                  <div style={styles.topPerformerStats}>
+                    <div style={styles.statItem}>Products Scouted: {(topPerformer.scoutedProducts || 0).toLocaleString()}</div>
+                    <div style={styles.statItem}>Orders Processed: {(topPerformer.ordersProcessed || 0).toLocaleString()}</div>
+                    <div style={styles.statItem}>Revenue Managed: ${(((topPerformer.revenueManaged || 0) / 1000)).toFixed(0)}K</div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={styles.topPerformerCard}>
+                  <div style={styles.topPerformerLabel}>Top Performer</div>
+                  <div style={{ fontSize: '13px', color: '#888' }}>No performance data yet</div>
+                </div>
+              )}
 
               {/* Charts */}
               <div>

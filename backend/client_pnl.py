@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey, func, UniqueConstraint
 from sqlalchemy.orm import Session, relationship
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Union
 from datetime import datetime
 from database import Base, get_db
 from auth import get_current_user, tenant_session
@@ -131,8 +131,17 @@ class PnLLineItemResponse(BaseModel):
 
 
 class ClientPnLCreate(BaseModel):
+    """Create / upsert input.
+
+    History: month was previously a single str "YYYY-MM" with year extracted
+    via int(month.split('-')[0]). Sending month="5" produced year=5 (digit
+    truncation) — BUG-11 data corruption. Schema now takes month + year as
+    separate validated ints; the route builds the "YYYY-MM" wire format
+    internally and writes both the string column AND the integer year.
+    """
     client_id: int
-    month: str  # Format: "2026-03"
+    month: int = Field(..., ge=1, le=12)
+    year: int = Field(..., ge=2000, le=2100)
     revenue: float = 0.0
     cogs: float = 0.0
     fba_fees: float = 0.0
@@ -143,6 +152,24 @@ class ClientPnLCreate(BaseModel):
     orders_count: int = 0
     active_asins: int = 0
     notes: Optional[str] = None
+
+    @field_validator("month", "year", mode="before")
+    @classmethod
+    def _coerce_numeric_strings(cls, v):
+        """The frontend uses <input type="number"> which yields strings
+        ('5', '2026'). Accept both; the Field bounds still enforce the
+        range. This is a deliberate string-tolerance, NOT a re-introduction
+        of BUG-11 — the bound checks (ge/le) reject any value outside the
+        valid window even if it came in as a string."""
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                raise ValueError("must not be blank")
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"must be an integer, got {v!r}")
+        return v
 
 
 class ClientPnLUpdate(BaseModel):
@@ -252,8 +279,20 @@ router = APIRouter(prefix="/client-pnl", tags=["Client P&L"])
 # ============================================================================
 
 def extract_year_from_month(month_str: str) -> int:
-    """Extract year from month string format 'YYYY-MM'"""
+    """Extract year from month string format 'YYYY-MM'.
+
+    Kept for the LIST endpoint's existing filter behavior on stored
+    rows. The CREATE path (BUG-11 fix) no longer uses it — it takes
+    month + year as separate ints and constructs the canonical
+    "YYYY-MM" string in the route.
+    """
     return int(month_str.split('-')[0])
+
+
+def format_month_str(year: int, month: int) -> str:
+    """Build the canonical "YYYY-MM" wire/storage format from validated
+    int inputs. Centralized so we don't drift between callers."""
+    return f"{year:04d}-{month:02d}"
 
 
 def get_current_org(current_user=Depends(tenant_session)) -> int:
@@ -276,18 +315,23 @@ def create_or_update_pnl(
     Create or update (upsert) monthly P&L for a client.
     Auto-computes gross_profit, net_profit, and profit_margin_pct.
     """
-    # Extract year from month string
-    year = extract_year_from_month(data.month)
+    # Canonical "YYYY-MM" string for both the unique-constrained `month`
+    # column AND the cross-check that follows. The integer `year` column
+    # is set from the input value directly — BUG-11 was the year column
+    # being filled from int(month_str.split('-')[0]) with month_str="5",
+    # which truncated to 5.
+    month_str = format_month_str(data.year, data.month)
 
     # Check if P&L exists for this month
     existing_pnl = db.query(ClientPnL).filter(
         ClientPnL.org_id == org_id,
         ClientPnL.client_id == data.client_id,
-        ClientPnL.month == data.month
+        ClientPnL.month == month_str
     ).first()
 
     if existing_pnl:
         # Update existing
+        existing_pnl.year = data.year
         existing_pnl.revenue = data.revenue
         existing_pnl.cogs = data.cogs
         existing_pnl.fba_fees = data.fba_fees
@@ -308,8 +352,8 @@ def create_or_update_pnl(
         org_id=org_id,
         client_id=data.client_id,
         logged_by=current_user.id,
-        month=data.month,
-        year=year,
+        month=month_str,
+        year=data.year,
         revenue=data.revenue,
         cogs=data.cogs,
         fba_fees=data.fba_fees,
