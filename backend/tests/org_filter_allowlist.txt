@@ -43,7 +43,7 @@
 # (all UNIQUE constraints) — a leak across orgs is not possible given
 # those uniqueness invariants in the table schema.
 
-backend/auth.py:141       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
+backend/auth.py:186       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
 backend/main.py:458       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
 backend/main.py:460       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
 backend/main.py:536       # reason: /auth/force-rotate — User lookup by username (UNIQUE) for pre-session forced rotation when /auth/login returns PASSWORD_EXPIRED; no JWT yet, same pre-auth shape as /auth/login
