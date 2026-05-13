@@ -426,16 +426,25 @@ export default function SettingsPage() {
     if (savedToken) {
       setToken(savedToken);
       setIsAuthenticated(true);
-      loadSettings();
+      // Pass savedToken explicitly. React's setToken() schedules an async
+      // state update — the `token` closure inside loadSettings() is still
+      // '' on this render, so every fetch downstream would send
+      // "Authorization: Bearer " (no actual token) and the backend
+      // returns 401. Routing through the argument bypasses the trap.
+      loadSettings(savedToken);
     }
   }, []);
 
   // Load user settings
-  const loadSettings = async () => {
+  const loadSettings = async (authToken) => {
+    // Fall back to the React-state token if a caller didn't pass one
+    // explicitly. The initial mount path always passes savedToken; later
+    // refreshes (if added) can rely on state being populated by then.
+    const bearer = authToken || token;
     try {
       // Load profile
       const profileRes = await fetch(`${BASE_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${bearer}` },
       });
       if (profileRes.ok) {
         const profileData = await profileRes.json();
@@ -461,7 +470,7 @@ export default function SettingsPage() {
 
       // Load Amazon API status
       const amazonRes = await fetch(`${BASE_URL}/amazon/status`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${bearer}` },
       });
       if (amazonRes.ok) {
         const amazonData = await amazonRes.json();
@@ -625,15 +634,24 @@ export default function SettingsPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/users/change-password`, {
+      // Backend route is POST /auth/change-password (main.py); the
+      // previous URL /users/change-password matched FastAPI's
+      // /users/{user_id} path with user_id="change-password" and was
+      // allowed only for PUT/DELETE, surfacing as 405. Body keys are
+      // snake_case to match ChangePasswordInput (current_password,
+      // new_password) — the global window.fetch transformer only
+      // converts RESPONSES, not request bodies, so the previous
+      // camelCase keys arrived as-is and Pydantic would have 422'd
+      // had the URL ever resolved.
+      const response = await fetch(`${BASE_URL}/auth/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          currentPassword: securityForm.currentPassword,
-          newPassword: securityForm.newPassword,
+          current_password: securityForm.currentPassword,
+          new_password: securityForm.newPassword,
         }),
       });
 
@@ -641,7 +659,15 @@ export default function SettingsPage() {
         setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
         showToast('Password changed successfully', 'success');
       } else {
-        showToast('Failed to change password', 'error');
+        // Surface the backend's detail string when present so policy
+        // violations (e.g. "Password must contain at least one symbol.")
+        // reach the user instead of a generic message.
+        let detail = 'Failed to change password';
+        try {
+          const data = await response.json();
+          if (data && typeof data.detail === 'string') detail = data.detail;
+        } catch {}
+        showToast(detail, 'error');
       }
     } catch (error) {
       showToast('Error changing password', 'error');

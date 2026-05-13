@@ -166,7 +166,7 @@ const Dashboard = () => {
     setActivityLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await fetch(`${API_BASE}/audit-logs?limit=10`, { headers });
+      const res = await fetch(`${API_BASE}/api/audit-logs?limit=10`, { headers });
       const data = await res.json();
       const feedData = Array.isArray(data) ? data : [];
       setActivityFeed(feedData.slice(0, 5));
