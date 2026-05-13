@@ -232,6 +232,13 @@ app.include_router(sprint_signup_router, prefix="/api/auth", tags=["auth-signup"
 app.include_router(sprint_onboarding_router, prefix="/api/onboarding", tags=["onboarding"])
 app.include_router(sprint_audit_logs_router, prefix="/api/audit-logs", tags=["audit"])
 
+# MFA Phase B (SP-API attestation). mfa.py defines /auth/mfa/* endpoints
+# (enroll/start, enroll/confirm, disable, regenerate-codes, status). The
+# companion login-flow changes (/auth/login returning a challenge token
+# and /auth/login/mfa-verify) live in this file below.
+from mfa import router as mfa_router
+app.include_router(mfa_router)
+
 # Phase 7-11 + Phase 12-15 routers (only include if successfully imported)
 for _key, _router in _dynamic_routers.items():
     if _router is not None:
@@ -474,6 +481,29 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
     if (_now() - pwd_age).days > settings.PASSWORD_MAX_AGE_DAYS:
         raise HTTPException(status_code=403, detail="PASSWORD_EXPIRED")
 
+    # MFA Phase B: if the user is enrolled, do NOT issue an access token
+    # yet — return a short-lived challenge token and have the frontend
+    # POST /auth/login/mfa-verify with the user's TOTP/recovery code.
+    # Owner-enforcement (forced enrollment) is handled at the route below
+    # and gated by settings.MFA_OWNER_ENFORCEMENT_ENABLED.
+    if user.mfa_enrolled_at is not None:
+        from mfa import issue_mfa_challenge_token
+        challenge = issue_mfa_challenge_token(user.id)
+        return {
+            "requires_mfa": True,
+            "mfa_challenge_token": challenge,
+            "message": "Enter your authenticator code to continue.",
+        }
+
+    # If owner-enforcement is on and this owner has no MFA yet, refuse
+    # to issue a session. Frontend redirects to /settings/mfa-setup.
+    if (
+        settings.MFA_OWNER_ENFORCEMENT_ENABLED
+        and (user.role or "").lower() == "owner"
+        and user.mfa_enrolled_at is None
+    ):
+        raise HTTPException(status_code=403, detail="MFA_ENROLLMENT_REQUIRED")
+
     token = create_access_token({"user_id": user.id, "org_id": user.org_id})
     refresh_token = create_refresh_token({"user_id": user.id, "org_id": user.org_id})
 
@@ -510,6 +540,77 @@ def login(request: Request, response: Response, data: LoginInput, db: Session = 
         # Nested user object for login.js consumers
         "user": user_data,
         "message": "Login successful",
+    }
+
+
+class MfaVerifyInput(BaseModel):
+    mfa_challenge_token: str
+    code: str
+
+
+@app.post("/auth/login/mfa-verify")
+@auth_rate_limit()
+def login_mfa_verify(
+    request: Request,
+    response: Response,
+    data: MfaVerifyInput,
+    db: Session = Depends(get_db),
+):
+    """Step 2 of the MFA login flow. Frontend lands here after /auth/login
+    returns {requires_mfa: true, mfa_challenge_token}. Body holds the
+    short-lived challenge token + the user's 6-digit TOTP code (or a
+    recovery code). On success: returns the same envelope as /auth/login.
+    """
+    from mfa import decode_mfa_challenge_token, _verify_totp_or_recovery
+    user_id = decode_mfa_challenge_token(data.mfa_challenge_token)
+    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found or inactive.")
+    if user.mfa_enrolled_at is None:
+        raise HTTPException(status_code=400, detail="MFA is not enabled on this account.")
+    if not _verify_totp_or_recovery(user, db, data.code):
+        # record_audit fires from inside the verify path on success;
+        # log the failure here so admin can investigate suspicious traffic.
+        record_audit(
+            db, request, user,
+            action="user.mfa.verify_fail", resource_type="user",
+            resource_id=user.id,
+        )
+        raise HTTPException(status_code=401, detail="Invalid code.")
+
+    record_audit(
+        db, request, user,
+        action="user.mfa.verify_success", resource_type="user",
+        resource_id=user.id,
+    )
+
+    token = create_access_token({"user_id": user.id, "org_id": user.org_id})
+    refresh_token = create_refresh_token({"user_id": user.id, "org_id": user.org_id})
+
+    org_name = ""
+    try:
+        org = db.query(Organization).filter(Organization.id == user.org_id).first()
+        if org is not None:
+            org_name = org.name or ""
+    except Exception:
+        db.rollback()
+
+    safe_name = (user.name or user.username or "").strip()
+    user_data = {
+        "username": user.username,
+        "name": safe_name or user.username,
+        "role": user.role,
+        "email": user.email,
+        "avatar": user.avatar or (safe_name[:1].upper() if safe_name else "U"),
+        "org_id": user.org_id,
+        "org_name": org_name,
+    }
+    return {
+        "token": token,
+        "refresh_token": refresh_token,
+        **user_data,
+        "user": user_data,
+        "message": "MFA verified. Signed in.",
     }
 
 

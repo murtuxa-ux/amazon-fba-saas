@@ -78,6 +78,15 @@ class User(Base):
     # written; /auth/login refuses sessions whose password is older than
     # PASSWORD_MAX_AGE_DAYS. Migration 0010 backfills NOW() for existing rows.
     password_changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # SP-API attestation Phase B — TOTP MFA. Migration 0012. mfa_secret
+    # is a base32 string used by pyotp.TOTP; mfa_recovery_codes_json
+    # holds 10 bcrypt-hashed single-use codes (popped on consumption).
+    # Owner/admin roles get forced enrollment once
+    # config.MFA_OWNER_ENFORCEMENT_ENABLED flips true.
+    mfa_secret = Column(String(64), nullable=True, default=None)
+    mfa_enrolled_at = Column(DateTime, nullable=True, default=None)
+    mfa_recovery_codes_json = Column(Text, nullable=True, default=None)
+    mfa_last_used_at = Column(DateTime, nullable=True, default=None)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 

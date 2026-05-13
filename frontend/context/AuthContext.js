@@ -208,6 +208,16 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const data = await apiLogin(username, password);
+    // MFA Phase B: if the account is MFA-enrolled, the backend short-
+    // circuits with {requires_mfa: true, mfa_challenge_token}. No
+    // session yet — caller (login.js) navigates to /login/mfa and
+    // completes the second step there.
+    if (data && data.requires_mfa) {
+      if (typeof window !== 'undefined' && data.mfa_challenge_token) {
+        sessionStorage.setItem('ecomera_mfa_challenge', data.mfa_challenge_token);
+      }
+      return { requires_mfa: true };
+    }
     // Backend returns: { token, refresh_token, username, name, role, email, avatar, org_id, org_name }
     // refresh_token is post-Day-7 (PR #56). Pre-PR-56 backends won't return
     // it; we tolerate that — the axios interceptor's refresh-and-retry just
