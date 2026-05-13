@@ -566,7 +566,7 @@ export default function TeamPage() {
     const fetchLogs = async () => {
       try {
         const token = localStorage.getItem('ecomera_token');
-        const response = await fetch(`${BASE_URL}/audit-logs?limit=50`, {
+        const response = await fetch(`${BASE_URL}/api/audit-logs?limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
