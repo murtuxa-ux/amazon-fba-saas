@@ -5,18 +5,19 @@ For Amazon Wholesale SaaS Platform (Ecom Era)
 Manages user accounts, roles, permissions, and org-scoped access control.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text, desc
 from sqlalchemy.orm import Session
 
 from auth import get_current_user, require_role, hash_password, tenant_session
-from models import User, Organization, ActivityLog
+from models import User, Organization
 from database import get_db
+from audit_logs import record_audit
 
 
 # ============================================================================
@@ -158,26 +159,6 @@ class PasswordResetSchema(BaseModel):
     new_password: str = Field(..., min_length=8)
 
 
-class ActivityLogResponseSchema(BaseModel):
-    """Schema for activity log"""
-    id: int
-    user_id: int
-    action: str
-    resource_type: str
-    resource_id: Optional[int]
-    details: Optional[dict]
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class ActivityListResponseSchema(BaseModel):
-    """Schema for listing activity logs"""
-    total: int
-    activities: List[ActivityLogResponseSchema]
-
-
 class TeamStatsSchema(BaseModel):
     """Schema for team statistics"""
     total_users: int
@@ -209,33 +190,6 @@ def check_role_hierarchy(actor_role: str, target_role: str, action: str = "chang
         return actor_level > target_level
 
     return False
-
-
-def log_activity(
-    db: Session,
-    org_id: int,
-    user_id: int,
-    action: str,
-    resource_type: str,
-    resource_id: Optional[int] = None,
-    details: Optional[dict] = None,
-):
-    """Log user activity"""
-    try:
-        activity = ActivityLog(
-            org_id=org_id,
-            user_id=user_id,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            details=details,
-            created_at=datetime.utcnow(),
-        )
-        db.add(activity)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        # Log but don't fail the main operation
 
 
 def verify_email_unique(db: Session, email: str, org_id: int, exclude_user_id: Optional[int] = None) -> bool:
@@ -313,6 +267,7 @@ def list_users(
 @router.post("/users", response_model=UserResponseSchema, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_data: UserCreateSchema,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -372,15 +327,11 @@ def create_user(
     db.commit()
     db.refresh(new_user)
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "create_user",
-        "User",
-        new_user.id,
-        {"created_role": user_data.role},
+    record_audit(
+        db, request, current_user,
+        action="user.create", resource_type="user",
+        resource_id=new_user.id,
+        after={"username": new_user.username, "email": new_user.email, "role": new_user.role},
     )
 
     return UserResponseSchema.from_orm(new_user)
@@ -411,6 +362,7 @@ def get_user(
 def update_user(
     user_id: int,
     user_data: UserUpdateSchema,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -438,6 +390,8 @@ def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+
+    before = {"name": user.name, "email": user.email, "role": user.role, "is_active": user.is_active}
 
     # Prevent demoting owner
     if user.role == RoleEnum.OWNER and user_data.role and user_data.role != RoleEnum.OWNER:
@@ -480,15 +434,12 @@ def update_user(
     db.commit()
     db.refresh(user)
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "update_user",
-        "User",
-        user_id,
-        {"updated_fields": user_data.dict(exclude_unset=True)},
+    record_audit(
+        db, request, current_user,
+        action="user.update", resource_type="user",
+        resource_id=user_id,
+        before=before,
+        after={"name": user.name, "email": user.email, "role": user.role, "is_active": user.is_active},
     )
 
     return UserResponseSchema.from_orm(user)
@@ -497,6 +448,7 @@ def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_user(
     user_id: int,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -539,20 +491,19 @@ def deactivate_user(
     user.is_active = False
     db.commit()
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "deactivate_user",
-        "User",
-        user_id,
+    record_audit(
+        db, request, current_user,
+        action="user.deactivate", resource_type="user",
+        resource_id=user_id,
+        before={"is_active": True},
+        after={"is_active": False},
     )
 
 @router.post("/users/{user_id}/reset-password")
 def reset_user_password(
     user_id: int,
     password_data: PasswordResetSchema,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -582,14 +533,10 @@ def reset_user_password(
     user.password_hash = hash_password(password_data.new_password)
     db.commit()
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "reset_password",
-        "User",
-        user_id,
+    record_audit(
+        db, request, current_user,
+        action="user.password_reset", resource_type="user",
+        resource_id=user_id,
     )
 
     return {"message": "Password reset successfully"}
@@ -598,6 +545,7 @@ def reset_user_password(
 @router.put("/profile", response_model=UserResponseSchema)
 def update_profile(
     profile_data: ProfileUpdateSchema,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -605,6 +553,8 @@ def update_profile(
     Update own profile (current user).
     Can update: name, email, avatar
     """
+    before = {"name": current_user.name, "email": current_user.email, "avatar": current_user.avatar}
+
     # Validate email uniqueness if changing
     if profile_data.email and profile_data.email.lower() != current_user.email:
         if not verify_email_unique(db, profile_data.email, current_user.org_id, current_user.id):
@@ -623,14 +573,12 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "update_profile",
-        "User",
-        current_user.id,
+    record_audit(
+        db, request, current_user,
+        action="user.profile_update", resource_type="user",
+        resource_id=current_user.id,
+        before=before,
+        after={"name": current_user.name, "email": current_user.email, "avatar": current_user.avatar},
     )
 
     return UserResponseSchema.from_orm(current_user)
@@ -639,6 +587,7 @@ def update_profile(
 @router.put("/change-password")
 def change_password(
     password_data: PasswordChangeSchema,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -666,14 +615,10 @@ def change_password(
     current_user.password_hash = hash_password(password_data.new_password)
     db.commit()
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "change_password",
-        "User",
-        current_user.id,
+    record_audit(
+        db, request, current_user,
+        action="user.password_change", resource_type="user",
+        resource_id=current_user.id,
     )
 
     return {"message": "Password changed successfully"}
@@ -701,46 +646,6 @@ def list_roles():
         })
 
     return roles
-
-
-@router.get("/activity", response_model=ActivityListResponseSchema)
-def get_activity_log(
-    current_user: User = Depends(tenant_session),
-    db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    days: int = Query(30, ge=1, le=365),
-):
-    """
-    Get user activity log for the organization.
-    Only owner/admin can access.
-    Shows recent actions by users in the org.
-    """
-    # Check authorization
-    if current_user.role not in [RoleEnum.OWNER, RoleEnum.ADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only owner or admin can view activity logs",
-        )
-
-    # Calculate date range
-    date_from = datetime.utcnow() - timedelta(days=days)
-
-    # Get activity logs
-    total = db.query(ActivityLog).filter(
-        ActivityLog.org_id == current_user.org_id,
-        ActivityLog.created_at >= date_from,
-    ).count()
-
-    activities = db.query(ActivityLog).filter(
-        ActivityLog.org_id == current_user.org_id,
-        ActivityLog.created_at >= date_from,
-    ).order_by(desc(ActivityLog.created_at)).offset(skip).limit(limit).all()
-
-    return {
-        "total": total,
-        "activities": [ActivityLogResponseSchema.from_orm(a) for a in activities],
-    }
 
 
 @router.get("/stats", response_model=TeamStatsSchema)
@@ -799,6 +704,7 @@ def get_team_stats(
 @router.post("/users/{user_id}/toggle-active")
 def toggle_user_active(
     user_id: int,
+    request: Request,
     current_user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -839,18 +745,16 @@ def toggle_user_active(
         )
 
     # Toggle status
+    previous_state = user.is_active
     user.is_active = not user.is_active
     db.commit()
 
-    # Log activity
-    log_activity(
-        db,
-        current_user.org_id,
-        current_user.id,
-        "toggle_user_active",
-        "User",
-        user_id,
-        {"is_active": user.is_active},
+    record_audit(
+        db, request, current_user,
+        action="user.toggle_active", resource_type="user",
+        resource_id=user_id,
+        before={"is_active": previous_state},
+        after={"is_active": user.is_active},
     )
 
     return {
