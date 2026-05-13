@@ -73,8 +73,8 @@ backend/dwm_reporting.py:510  # reason: User lookup by id inside weekly-summary 
 backend/dwm_reporting.py:619  # reason: User lookup by id inside monthly-summary loop; uid keys come from prior org-scoped DWMDailyLogs aggregation
 backend/dwm_reporting.py:766  # reason: User lookup by id inside team-breakdown loop; uid keys come from prior org-scoped DWMApprovals aggregation
 backend/dwm_reporting.py:864  # reason: User lookup by id inside leaderboard loop; uid keys come from prior org-scoped DWMApprovals aggregation
-backend/multi_user_access.py:243  # reason: verify_email_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed because filter is on the *variable* not the original chain)
-backend/multi_user_access.py:255  # reason: verify_username_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed for the same chain-tracking reason)
+backend/multi_user_access.py:197  # reason: verify_email_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed because filter is on the *variable* not the original chain)
+backend/multi_user_access.py:209  # reason: verify_username_unique helper — caller passes org_id explicitly; query DOES filter by User.org_id == org_id (lint missed for the same chain-tracking reason)
 
 # ── Builder-pattern false positives ─────────────────────────────────────────
 # Code shape:
