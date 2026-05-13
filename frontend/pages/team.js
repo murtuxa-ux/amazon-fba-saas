@@ -488,8 +488,28 @@ const rolePermissions = {
 
 // Horizontal Bar Chart Component
 function PerformanceChart({ data, metric, label }) {
-  const maxValue = Math.max(...data.map((d) => d[metric]));
-  const chartHeight = data.length * 50 + 40;
+  // BUG-34 Sprint 1.5: the 5th unguarded null path. `Math.max(...arr)`
+  // returns NaN if ANY element is undefined; the chart then renders
+  // SVG attributes (width, x, height) as NaN, and React throws
+  // "Application error" because SVG attributes must be finite. Filter
+  // to finite numbers before reducing, and clamp barWidth to 0 when
+  // we can't compute a sensible value. Documented PR #75 missed this
+  // path; the four guarded sites (item.name, item[metric].toLocale,
+  // topPerformer.*) shielded the visible labels but not the math.
+  const dataArr = Array.isArray(data) ? data : [];
+  const validValues = dataArr
+    .map((d) => d?.[metric])
+    .filter((v) => typeof v === 'number' && Number.isFinite(v));
+  const maxValue = validValues.length > 0 ? Math.max(...validValues) : 0;
+  const chartHeight = dataArr.length * 50 + 40;
+
+  if (dataArr.length === 0) {
+    return (
+      <div style={{ padding: '24px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+        No team members to chart.
+      </div>
+    );
+  }
 
   return (
     <svg width="100%" height={chartHeight} viewBox={`0 0 600 ${chartHeight}`} style={{ marginBottom: '24px' }}>
@@ -499,8 +519,10 @@ function PerformanceChart({ data, metric, label }) {
       </text>
 
       {/* Bars */}
-      {data.map((item, idx) => {
-        const barWidth = (item[metric] / maxValue) * 450;
+      {dataArr.map((item, idx) => {
+        const rawValue = item?.[metric];
+        const value = typeof rawValue === 'number' && Number.isFinite(rawValue) ? rawValue : 0;
+        const barWidth = maxValue > 0 ? (value / maxValue) * 450 : 0;
         const yPos = 50 + idx * 50;
         return (
           <g key={idx}>
@@ -510,11 +532,11 @@ function PerformanceChart({ data, metric, label }) {
             <rect x="150" y={yPos} width={barWidth} height="30" fill="#FFD700" rx="4" />
             {/* Name label */}
             <text x="10" y={yPos + 20} fontSize="12" fill="#CCCCCC" textAnchor="start">
-              {(item.name || '').split(' ')[0] || '—'}
+              {(item?.name || '').split(' ')[0] || '—'}
             </text>
             {/* Value label */}
             <text x={160 + barWidth} y={yPos + 20} fontSize="12" fill="#0A0A0A" fontWeight="600">
-              {(item[metric] || 0).toLocaleString()}
+              {value.toLocaleString()}
             </text>
           </g>
         );
@@ -648,8 +670,19 @@ export default function TeamPage() {
     localStorage.setItem('teamPermissions', JSON.stringify(newPerms));
   };
 
-  // Find top performer
-  const topPerformer = performance.reduce((prev, current) => (current.tasksCompleted > prev.tasksCompleted ? current : prev));
+  // Find top performer. BUG-34 Sprint 1.5: `.reduce` without an
+  // initial value throws TypeError on an empty array — another
+  // page-crash path. Guard with an initial accumulator and a length
+  // check; the top-performer card now no-renders cleanly (see the
+  // conditional render below) when there's no data.
+  const perfArr = Array.isArray(performance) ? performance : [];
+  const topPerformer = perfArr.length > 0
+    ? perfArr.reduce(
+        (prev, current) =>
+          ((current?.tasksCompleted || 0) > (prev?.tasksCompleted || 0) ? current : prev),
+        perfArr[0],
+      )
+    : null;
 
   return (
     <div style={styles.outerContainer}>

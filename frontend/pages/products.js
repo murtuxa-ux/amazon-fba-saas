@@ -73,8 +73,18 @@ export default function Products() {
         throw new Error('Failed to fetch products');
       }
 
+      // BUG-20 (Sprint 1.5): GET /products-pipeline returns
+      // {total, skip, limit, items: [...]} — not {products: [...]}.
+      // The previous code looked for data.products, found undefined,
+      // fell back to [], and the list stayed empty after every
+      // successful create. Same envelope-shape bug as /clients (BUG-10).
+      // Read `items` first, then `products` (legacy), then flat array.
       const data = await response.json();
-      const productsArray = Array.isArray(data) ? data : data.products || [];
+      const productsArray = Array.isArray(data)
+        ? data
+        : (Array.isArray(data?.items)
+            ? data.items
+            : (Array.isArray(data?.products) ? data.products : []));
       setProducts(productsArray);
     } catch (err) {
       setError(err.message || 'Error fetching products');
@@ -215,11 +225,18 @@ export default function Products() {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
       const token = localStorage.getItem('ecomera_token');
+      // BUG-20 (Sprint 1.5): backend schema field is `cost_price`, not
+      // `cost`. The form state keeps the shorter name `cost` for UX,
+      // but we map to cost_price on the wire AND drop the bare `cost`
+      // key so Pydantic's extra="ignore" doesn't accidentally store a
+      // stray value. Result of NOT fixing this: every product saved
+      // with cost_price=0 → every ROI calc resolved to 0%.
       const payload = {
         ...formData,
-        cost: parseFloat(formData.cost) || 0,
+        cost_price: parseFloat(formData.cost) || 0,
         sell_price: parseFloat(formData.sell_price) || 0,
       };
+      delete payload.cost;
       if (!editingProduct) {
         payload.assigned_to = currentUserId;
       }
