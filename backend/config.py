@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     TRIAL_DAYS: int = 14
     EMAIL_VERIFICATION_TOKEN_HOURS: int = 24
 
+    # Password rotation (SP-API attestation Phase A). /auth/login refuses
+    # sessions whose users.password_changed_at is older than this many days,
+    # responding 403 detail="PASSWORD_EXPIRED" so the frontend can redirect
+    # to /change-password?forced=true. Set per Amazon SP-API security
+    # requirements.
+    PASSWORD_MAX_AGE_DAYS: int = 365
+
     class Config:
         env_file = ".env"
         extra = "ignore"

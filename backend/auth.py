@@ -46,6 +46,51 @@ def _truncate_password(password: str) -> str:
     return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
 
 
+# ── Password policy (SP-API attestation) ────────────────────────────────────
+# Validation rules below run ONLY on password SET / CHANGE flows (signup,
+# /auth/change-password, /auth/reset-password, admin user create / reset).
+# /auth/login does NOT call validate_password — login is bcrypt match + 365d
+# expiry only. This grandfathers existing weak passwords in (they keep working
+# until the user rotates or the 365d window elapses, whichever comes first).
+# Once a user rotates, the new password must satisfy these rules.
+
+import os
+from typing import Tuple
+
+_COMMON_PASSWORDS: frozenset = frozenset()
+try:
+    _denylist_path = os.path.join(os.path.dirname(__file__), "data", "common_passwords.txt")
+    with open(_denylist_path, "r", encoding="utf-8", errors="ignore") as _f:
+        _COMMON_PASSWORDS = frozenset(line.strip().lower() for line in _f if line.strip())
+    logger.info(f"password denylist loaded: {len(_COMMON_PASSWORDS)} entries")
+except Exception as _e:
+    logger.warning(f"password denylist load failed: {_e}; denylist check will pass everything")
+
+
+def validate_password(password: str) -> Tuple[bool, Optional[str]]:
+    """Return (ok, reason). Reason is None on success, otherwise a single
+    user-safe sentence explaining the first failure. Order matters — we
+    surface length first because it gates the others.
+    """
+    if not isinstance(password, str):
+        return False, "Password must be a string."
+    if len(password.encode("utf-8")) > 72:
+        return False, "Password is too long (max 72 bytes — bcrypt limit)."
+    if len(password) < 12:
+        return False, "Password must be at least 12 characters."
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter."
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter."
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one digit."
+    if not any(not c.isalnum() for c in password):
+        return False, "Password must contain at least one symbol."
+    if password.lower() in _COMMON_PASSWORDS:
+        return False, "Password is too common — pick something less guessable."
+    return True, None
+
+
 def hash_password(password: str) -> str:
     truncated = _truncate_password(password)
     if _use_passlib:

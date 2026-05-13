@@ -36,7 +36,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 
 import models
-from auth import hash_password, create_access_token
+from auth import hash_password, create_access_token, validate_password
 from config import settings
 from database import get_db
 from email_service import get_html_wrapper, send_email
@@ -123,18 +123,13 @@ def _send_verification_email(to_email: str, name: str, plaintext_token: str) -> 
 class SignupRequest(BaseModel):
     org_name: str = Field(..., min_length=2, max_length=200)
     email: EmailStr
-    password: str = Field(..., min_length=10, max_length=100)
+    # Pydantic min_length kept loose; the SP-API policy is enforced by
+    # validate_password() inside the route so the friendly per-rule reason
+    # surfaces to the user as a 400 detail (not Pydantic's generic
+    # "value error" envelope).
+    password: str = Field(..., min_length=12, max_length=100)
     # Match existing User.name convention (legacy /auth/signup also uses `name`).
     name: str = Field(..., min_length=2, max_length=200)
-
-    @field_validator("password")
-    @classmethod
-    def _password_strength(cls, v: str) -> str:
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        if not any(c.isalpha() for c in v):
-            raise ValueError("Password must contain at least one letter")
-        return v
 
 
 class SignupResponse(BaseModel):
@@ -176,6 +171,10 @@ def signup(
     """Create org + first user (Owner role) + send verification email."""
     email = body.email.lower().strip()
 
+    ok, reason = validate_password(body.password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
+
     # Anti-enumeration: same response whether email exists or not.
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
@@ -201,6 +200,7 @@ def signup(
         email=email,
         name=name,
         password_hash=hash_password(body.password),
+        password_changed_at=_now(),
         role="owner",
         avatar=name[0].upper() if name else "U",
         is_active=True,

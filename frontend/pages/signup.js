@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import PasswordStrength, { passwordValid } from '../components/PasswordStrength';
 
 export default function Signup() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amazon-fba-saas-production.up.railway.app";
@@ -48,12 +49,8 @@ export default function Signup() {
       setError('Password is required');
       return false;
     }
-    if (data.password.length < 10) {
-      setError('Password must be at least 10 characters');
-      return false;
-    }
-    if (!/\d/.test(data.password) || !/[A-Za-z]/.test(data.password)) {
-      setError('Password must contain at least one letter and one digit');
+    if (!passwordValid(data.password)) {
+      setError('Password does not meet all requirements (see checklist below)');
       return false;
     }
     if (data.password !== data.confirmPassword) {
@@ -265,14 +262,15 @@ export default function Signup() {
                    value={formData.fullName} onChange={handleInputChange} />
             <Field label="Email Address" name="email" type="email" placeholder="you@example.com"
                    value={formData.email} onChange={handleInputChange} />
-            <Field label="Password" name="password" type="password" placeholder="at least 10 characters, letters + digits"
+            <Field label="Password" name="password" type="password" placeholder="12+ chars, mix of cases, digit, symbol"
                    value={formData.password} onChange={handleInputChange} />
+            <PasswordStrength password={formData.password} />
             <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="re-enter your password"
                    value={formData.confirmPassword} onChange={handleInputChange} marginBottom="28px" />
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !passwordValid(formData.password) || formData.password !== formData.confirmPassword}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -280,10 +278,10 @@ export default function Signup() {
                 color: '#0A0A0A',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: (loading || !passwordValid(formData.password) || formData.password !== formData.confirmPassword) ? 'not-allowed' : 'pointer',
                 fontSize: '14px',
                 fontWeight: '600',
-                opacity: loading ? 0.6 : 1,
+                opacity: (loading || !passwordValid(formData.password) || formData.password !== formData.confirmPassword) ? 0.6 : 1,
               }}
             >
               {loading ? 'Creating Account...' : 'Create Account'}

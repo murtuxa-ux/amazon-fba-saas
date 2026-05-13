@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import PasswordStrength, { passwordValid } from '../components/PasswordStrength';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -181,8 +182,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!passwordValid(newPassword)) {
+      setError('Password does not meet all requirements (see checklist).');
       return;
     }
 
@@ -286,7 +287,7 @@ export default function ResetPasswordPage() {
               <input
                 id="newPassword"
                 type="password"
-                placeholder="Min 6 characters"
+                placeholder="12+ chars, mix of cases, digit, symbol"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 onFocus={() => setNewPwFocused(true)}
@@ -299,6 +300,7 @@ export default function ResetPasswordPage() {
                 disabled={loading || !!success}
                 autoComplete="new-password"
               />
+              <PasswordStrength password={newPassword} />
             </div>
 
             <div style={styles.formGroup}>
@@ -328,10 +330,10 @@ export default function ResetPasswordPage() {
 
             <button
               type="submit"
-              disabled={loading || !!success}
+              disabled={loading || !!success || !passwordValid(newPassword) || newPassword !== confirmPassword}
               style={{
                 ...styles.submitButton,
-                ...((loading || !!success) ? styles.submitButtonDisabled : {}),
+                ...((loading || !!success || !passwordValid(newPassword) || newPassword !== confirmPassword) ? styles.submitButtonDisabled : {}),
               }}
               onMouseEnter={(e) => {
                 if (!loading && !success) {
