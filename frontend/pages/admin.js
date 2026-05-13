@@ -558,7 +558,7 @@ export default function AdminPage() {
       if (auditFilters.dateFrom) params.append('dateFrom', auditFilters.dateFrom);
       if (auditFilters.dateTo) params.append('dateTo', auditFilters.dateTo);
 
-      const response = await fetch(`${BASE_URL}/audit-logs?${params}`, {
+      const response = await fetch(`${BASE_URL}/api/audit-logs?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
