@@ -44,20 +44,18 @@
 # those uniqueness invariants in the table schema.
 
 backend/auth.py:141       # reason: get_current_user — fetches User by id from JWT, runs BEFORE tenant_session sets app.current_org_id; User.id PK + JWT signature provide authoritative scoping
-backend/main.py:445       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
-backend/main.py:447       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
-backend/main.py:519       # reason: /auth/refresh — User lookup by id from a verified refresh JWT; pre-auth, token signature is authoritative
-backend/main.py:529       # reason: /auth/signup — pre-existence check on username (UNIQUE) before the org is even created; no tenancy scope possible
-backend/main.py:531       # reason: /auth/signup — pre-existence check on email (UNIQUE) before the org is even created
-backend/signup.py:180     # reason: /api/auth/signup — pre-existence check on email (UNIQUE) before the org is even created; same pattern as legacy /auth/signup
+backend/main.py:446       # reason: /auth/login — User lookup by username (UNIQUE) before any org context exists; this query establishes the org context
+backend/main.py:448       # reason: /auth/login — User lookup by email (UNIQUE) before any org context exists; same path as login
+backend/main.py:520       # reason: /auth/refresh — User lookup by id from a verified refresh JWT; pre-auth, token signature is authoritative
+backend/signup.py:180     # reason: /api/auth/signup — pre-existence check on email (UNIQUE) before the org is even created; same pattern as the (now-removed) legacy /auth/signup
 backend/signup.py:259     # reason: /api/auth/verify — User lookup by id from a one-shot SHA-256-hashed token record; pre-auth, token+expiry+used_at are the authoritative scope
 backend/signup.py:296     # reason: /api/auth/resend-verification — User lookup by email (UNIQUE) for unauthenticated re-issuance of verification token
 backend/onboarding.py:207 # reason: /api/onboarding/invite — pre-existence check on User.email (UNIQUE, global) before issuing invite; cross-org check by design (UNIQUE constraint enforces no two orgs can claim same email)
 backend/onboarding.py:256 # reason: /api/onboarding/accept-invite — TeamInvite lookup by token_hash (UNIQUE) is pre-auth (caller has invite link but no JWT yet); token+expiry+used_at are the authoritative scope
-backend/main.py:588       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
-backend/main.py:645       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
-backend/main.py:696       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
-backend/main.py:255       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
+backend/main.py:555       # reason: /auth/forgot-password — User lookup by email (UNIQUE) for unauthenticated reset-token issuance
+backend/main.py:617       # reason: /auth/reset-password — User lookup by id from decoded reset token (signed, short-lived) post-token-validation, pre-auth
+backend/main.py:668       # reason: /users POST add-user — cross-org username UNIQUE check; usernames are globally unique by table constraint, this query enforces that constraint at the app layer too
+backend/main.py:264       # reason: /seed admin route — pre-existence probe on username "murtaza"; route gated to owner/admin role and intentionally global
 backend/ppc_action_plan.py:962  # reason: custom JWT decode route — fetches User by uid from token before any tenant_session priming, identical to get_current_user pattern
 backend/websocket_manager.py:221  # reason: WS handshake — fetches User by id from JWT subprotocol token before connection is admitted; runs in WS lifecycle pre-tenant_session, mirrors get_current_user
 

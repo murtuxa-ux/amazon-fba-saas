@@ -129,6 +129,15 @@ app.add_middleware(
 # and Sentry events correlate across the request lifecycle.
 app.add_middleware(RequestIDMiddleware)
 
+# Payload size cap (§2.5). Rejects requests with Content-Length over
+# 1 MB at the middleware layer with a 413, so oversized bodies don't
+# reach the JSON parser / DB and surface as 500s. Multipart upload
+# routes are allowlisted in payload_size_middleware.py. Wired BEFORE
+# SecurityHeadersMiddleware so the 413 response passes back through
+# the headers middleware on the way out and receives security headers.
+from payload_size_middleware import PayloadSizeLimitMiddleware  # noqa: E402
+app.add_middleware(PayloadSizeLimitMiddleware)
+
 # Security headers — six defensive HTTP headers on every response.
 # See backend/security_middleware.py for the rationale per header.
 # Starlette runs middleware in reverse order of registration, so this
@@ -309,14 +318,6 @@ def _log_activity(db: Session, user: User, action: str, detail: str = ""):
 class LoginInput(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
-    password: str
-
-
-class SignupInput(BaseModel):
-    org_name: str
-    name: str
-    email: str
-    username: str
     password: str
 
 
@@ -524,45 +525,6 @@ def refresh_access_token(
     return {"token": new_access}
 
 
-@app.post("/auth/signup")
-def signup(data: SignupInput, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.username == data.username.strip().lower()).first():
-        raise HTTPException(status_code=400, detail="Username already exists.")
-    if db.query(User).filter(User.email == data.email.strip().lower()).first():
-        raise HTTPException(status_code=400, detail="Email already registered.")
-
-    org = Organization(name=data.org_name.strip(), plan="starter", created_at=_now())
-    db.add(org)
-    db.flush()
-
-    user = User(
-        org_id=org.id,
-        username=data.username.strip().lower(),
-        password_hash=hash_password(data.password),
-        name=data.name.strip(),
-        email=data.email.strip().lower(),
-        role="owner",
-        avatar=data.name[0].upper() if data.name else "U",
-        is_active=True,
-        created_at=_now(),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    token = create_access_token({"user_id": user.id, "org_id": org.id})
-    return {
-        "token": token,
-        "username": user.username,
-        "name": user.name,
-        "role": user.role,
-        "email": user.email,
-        "avatar": user.avatar,
-        "org_id": org.id,
-        "org_name": org.name,
-    }
-
-
 @app.post("/auth/logout")
 def logout():
     return {"status": "logged out"}
@@ -582,7 +544,12 @@ FRONTEND_URL = "https://amazon-fba-saas.vercel.app"
 
 @app.post("/auth/forgot-password")
 @auth_rate_limit()
-def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = Depends(get_db)):
+def forgot_password(
+    request: Request,
+    response: Response,
+    data: ForgotPasswordInput,
+    db: Session = Depends(get_db),
+):
     """Generate a password reset token and send reset email"""
     email = data.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -626,7 +593,12 @@ def forgot_password(request: Request, data: ForgotPasswordInput, db: Session = D
 
 @app.post("/auth/reset-password")
 @auth_rate_limit()
-def reset_password(request: Request, data: ResetPasswordInput, db: Session = Depends(get_db)):
+def reset_password(
+    request: Request,
+    response: Response,
+    data: ResetPasswordInput,
+    db: Session = Depends(get_db),
+):
     """Reset password using a valid reset token"""
     from auth import decode_token
 

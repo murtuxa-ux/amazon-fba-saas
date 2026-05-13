@@ -18,4 +18,10 @@ echo "entrypoint: running alembic bootstrap"
 python alembic_bootstrap.py
 
 echo "entrypoint: starting uvicorn on port ${PORT:-8000}"
-exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}"
+# --proxy-headers + --forwarded-allow-ips "*" makes uvicorn populate
+# request.client.host from X-Forwarded-For. Without it, every request
+# inside Railway's edge proxy looks like it came from the proxy's
+# rotating internal IP, and slowapi's per-IP rate limit splits one real
+# client across many buckets — i.e. the 5/min auth limit never fires.
+exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}" \
+    --proxy-headers --forwarded-allow-ips "*"
