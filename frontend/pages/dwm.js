@@ -168,19 +168,397 @@ function LeaderboardTab({ leaderboard, loading, error, onRefetch }) {
   );
 }
 
-function SubmitTabPlaceholder() {
+// ── Submit Daily Form (BUG-29, Sprint 2 A1) ────────────────────────────────
+//
+// Replaces the long-running placeholder with a real form mapped to
+// backend POST /dwm/daily (backend/dwm_reporting.py:194). The backend
+// schema is:
+//   log_date    str  YYYY-MM-DD (required)
+//   role_type   str  "account_manager" | "sourcing_executive"
+//   products    list of {asin, product_name, brand, category, brand_url}
+//   brands      list of {brand_name, distributor_name, category, contact_method, contact_status}
+//   notes       str  optional
+//
+// Backend enforces one-log-per-user-per-date — duplicate returns 400
+// "Daily log already exists for {date}…". The form catches that and
+// surfaces a banner with a "Use a different date" affordance.
+
+const submitStyles = {
+  sectionTitle: {
+    fontSize: '14px', fontWeight: 700, color: '#FFD000',
+    textTransform: 'uppercase', letterSpacing: '0.5px',
+    paddingBottom: '8px', marginBottom: '16px',
+    borderBottom: '2px solid #FFD000',
+  },
+  fieldGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px', marginBottom: '12px',
+  },
+  label: {
+    display: 'block', fontSize: '12px', color: '#A0A0A0',
+    marginBottom: '4px', fontWeight: 500,
+  },
+  // YB convention: input cells light yellow #FFFDE7 with blue text.
+  input: {
+    width: '100%', padding: '8px 10px', fontSize: '14px',
+    backgroundColor: '#FFFDE7', color: '#1F3A8A',
+    border: '1px solid #E5E5E5', borderRadius: '4px',
+    boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none',
+  },
+  rowCard: (alt) => ({
+    backgroundColor: alt ? '#0E0E0E' : '#141414',
+    border: '1px solid #1E1E1E', borderRadius: '6px',
+    padding: '12px', marginBottom: '10px',
+  }),
+  removeLink: {
+    background: 'transparent', border: 'none', color: '#C86464',
+    fontSize: '12px', cursor: 'pointer', padding: 0, marginTop: '6px',
+  },
+  addBtn: {
+    background: 'transparent', color: '#FFD000',
+    border: '1px dashed #FFD000', borderRadius: '6px',
+    padding: '8px 14px', fontSize: '13px', fontWeight: 600,
+    cursor: 'pointer', marginBottom: '20px',
+  },
+  textarea: {
+    width: '100%', minHeight: '90px', padding: '10px 12px', fontSize: '14px',
+    backgroundColor: '#FFFDE7', color: '#1F3A8A',
+    border: '1px solid #E5E5E5', borderRadius: '4px',
+    boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+  },
+  submitBtn: (disabled) => ({
+    width: '100%', padding: '12px 20px', fontSize: '15px', fontWeight: 700,
+    backgroundColor: disabled ? '#666666' : '#FFD000',
+    color: disabled ? '#CCCCCC' : '#1A1A1A',
+    border: 'none', borderRadius: '6px',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+  }),
+  spinner: {
+    width: '14px', height: '14px',
+    border: '2px solid #1A1A1A', borderTopColor: 'transparent',
+    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+  },
+  banner: (variant) => ({
+    padding: '12px 14px', borderRadius: '6px', marginBottom: '16px',
+    fontSize: '13px', lineHeight: 1.5,
+    backgroundColor: variant === 'error' ? '#2B1111' : variant === 'duplicate' ? '#3F2F1B' : '#112B1F',
+    border: `1px solid ${variant === 'error' ? '#664444' : variant === 'duplicate' ? '#FFD000' : '#446644'}`,
+    color: variant === 'error' ? '#FF6B6B' : variant === 'duplicate' ? '#FFD000' : '#6BFF9F',
+  }),
+};
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function emptyProduct() {
+  return { asin: '', product_name: '', brand: '', category: '', brand_url: '' };
+}
+function emptyBrand() {
+  return { brand_name: '', distributor_name: '', category: '', contact_method: 'email', contact_status: 'pending' };
+}
+
+function isProductRowFilled(p) {
+  return Boolean((p.asin || '').trim() || (p.product_name || '').trim());
+}
+function isBrandRowFilled(b) {
+  return Boolean((b.brand_name || '').trim());
+}
+
+function SubmitDailyTab({ onSubmitted }) {
+  const [logDate, setLogDate] = useState(todayISO());
+  const [roleType, setRoleType] = useState('account_manager');
+  const [products, setProducts] = useState([emptyProduct()]);
+  const [brands, setBrands] = useState([emptyBrand()]);
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [duplicateMsg, setDuplicateMsg] = useState('');
+  const [validationError, setValidationError] = useState('');
+
+  const reset = () => {
+    setLogDate(todayISO());
+    setRoleType('account_manager');
+    setProducts([emptyProduct()]);
+    setBrands([emptyBrand()]);
+    setNotes('');
+    setError('');
+    setDuplicateMsg('');
+    setValidationError('');
+  };
+
+  const setProductField = (idx, field, value) => {
+    setProducts((rows) => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+  const setBrandField = (idx, field, value) => {
+    setBrands((rows) => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+
+  // Validation mirroring spec: date required & ≤ today, role required,
+  // at least one filled product OR brand row.
+  const filledProducts = products.filter(isProductRowFilled);
+  const filledBrands = brands.filter(isBrandRowFilled);
+  const dateValid = logDate && logDate <= todayISO();
+  const hasContent = filledProducts.length > 0 || filledBrands.length > 0 || (notes || '').trim().length > 0;
+  const canSubmit = dateValid && roleType && hasContent && !submitting;
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.();
+    setError('');
+    setDuplicateMsg('');
+    setValidationError('');
+
+    if (!dateValid) {
+      setValidationError('Pick a valid date (today or earlier).');
+      return;
+    }
+    if (!hasContent) {
+      setValidationError('Add at least one product, one brand contacted, or notes.');
+      return;
+    }
+
+    setSubmitting(true);
+    // Submit MUST use AbortController + 15s timeout (Sprint 1 pattern).
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const payload = {
+        log_date: logDate,
+        role_type: roleType,
+        products: filledProducts,
+        brands: filledBrands,
+        notes: (notes || '').trim(),
+      };
+      const res = await api.post('/dwm/daily', payload, { signal: controller.signal });
+      // Success — onSubmitted handles tab switch + refetch + toast.
+      reset();
+      if (onSubmitted) onSubmitted(res?.data);
+    } catch (err) {
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.name === 'AbortError') {
+        setError('Submission timed out after 15 seconds. Please try again.');
+      } else {
+        const detail = err?.response?.data?.detail;
+        if (typeof detail === 'string' && detail.toLowerCase().includes('already exists')) {
+          setDuplicateMsg(detail);
+        } else {
+          setError(detail || err?.message || 'Failed to submit daily log.');
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setSubmitting(false);
+    }
+  };
+
+  const useDifferentDate = () => {
+    setDuplicateMsg('');
+    // Roll back one day so the user can fix without re-typing.
+    const d = new Date(logDate);
+    d.setDate(d.getDate() - 1);
+    setLogDate(d.toISOString().slice(0, 10));
+  };
+
   return (
-    <div style={styles.noticeCard}>
-      <h3 style={{ margin: 0, marginBottom: '8px', color: '#FFD000' }}>
-        Daily submission UI — coming next
-      </h3>
-      <p style={{ maxWidth: '480px', margin: '0 auto', color: '#A0A0A0', lineHeight: 1.5 }}>
-        The backend <code style={{ color: '#FFD000' }}>POST /dwm/daily</code> expects a
-        structured payload (role, products with ASIN/title/brand, brands contacted, notes).
-        The legacy free-form checklist + accomplishments / challenges flow doesn't map cleanly
-        to that schema — a structured submit form is the follow-up PR.
-      </p>
-    </div>
+    <form onSubmit={handleSubmit}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {duplicateMsg && (
+        <div style={submitStyles.banner('duplicate')}>
+          {duplicateMsg}{' '}
+          <button type="button" onClick={useDifferentDate} style={{ ...submitStyles.removeLink, color: '#FFD000', textDecoration: 'underline' }}>
+            Use a different date
+          </button>
+        </div>
+      )}
+      {error && <div style={submitStyles.banner('error')}>{error}</div>}
+      {validationError && <div style={submitStyles.banner('error')}>{validationError}</div>}
+
+      {/* Header card: date + role */}
+      <div style={styles.card}>
+        <div style={submitStyles.sectionTitle}>Log Details</div>
+        <div style={submitStyles.fieldGrid}>
+          <div>
+            <label style={submitStyles.label}>Date *</label>
+            <input
+              type="date"
+              value={logDate}
+              max={todayISO()}
+              onChange={(e) => setLogDate(e.target.value)}
+              style={submitStyles.input}
+              required
+            />
+          </div>
+          <div>
+            <label style={submitStyles.label}>Role *</label>
+            <select
+              value={roleType}
+              onChange={(e) => setRoleType(e.target.value)}
+              style={submitStyles.input}
+            >
+              <option value="account_manager">Account Manager</option>
+              <option value="sourcing_executive">Sourcing Executive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Products hunted */}
+      <div style={styles.card}>
+        <div style={submitStyles.sectionTitle}>Products Hunted</div>
+        {products.map((p, idx) => (
+          <div key={idx} style={submitStyles.rowCard(idx % 2 === 1)}>
+            <div style={submitStyles.fieldGrid}>
+              <div>
+                <label style={submitStyles.label}>ASIN</label>
+                <input
+                  type="text" value={p.asin} maxLength={10}
+                  onChange={(e) => setProductField(idx, 'asin', e.target.value.trim().toUpperCase())}
+                  placeholder="B0XXXXXXXX" style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Product Name</label>
+                <input
+                  type="text" value={p.product_name}
+                  onChange={(e) => setProductField(idx, 'product_name', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Brand</label>
+                <input
+                  type="text" value={p.brand}
+                  onChange={(e) => setProductField(idx, 'brand', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Category</label>
+                <input
+                  type="text" value={p.category}
+                  onChange={(e) => setProductField(idx, 'category', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={submitStyles.label}>Brand URL</label>
+                <input
+                  type="url" value={p.brand_url}
+                  onChange={(e) => setProductField(idx, 'brand_url', e.target.value)}
+                  placeholder="https://"
+                  style={submitStyles.input}
+                />
+              </div>
+            </div>
+            {products.length > 1 && (
+              <button
+                type="button" style={submitStyles.removeLink}
+                onClick={() => setProducts((rows) => rows.filter((_, i) => i !== idx))}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button" style={submitStyles.addBtn}
+          onClick={() => setProducts((rows) => [...rows, emptyProduct()])}
+        >
+          + Add Product
+        </button>
+      </div>
+
+      {/* Brands contacted */}
+      <div style={styles.card}>
+        <div style={submitStyles.sectionTitle}>Brands Contacted</div>
+        {brands.map((b, idx) => (
+          <div key={idx} style={submitStyles.rowCard(idx % 2 === 1)}>
+            <div style={submitStyles.fieldGrid}>
+              <div>
+                <label style={submitStyles.label}>Brand Name</label>
+                <input
+                  type="text" value={b.brand_name}
+                  onChange={(e) => setBrandField(idx, 'brand_name', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Distributor</label>
+                <input
+                  type="text" value={b.distributor_name}
+                  onChange={(e) => setBrandField(idx, 'distributor_name', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Category</label>
+                <input
+                  type="text" value={b.category}
+                  onChange={(e) => setBrandField(idx, 'category', e.target.value)}
+                  style={submitStyles.input}
+                />
+              </div>
+              <div>
+                <label style={submitStyles.label}>Contact Method</label>
+                <select
+                  value={b.contact_method}
+                  onChange={(e) => setBrandField(idx, 'contact_method', e.target.value)}
+                  style={submitStyles.input}
+                >
+                  <option value="email">Email</option>
+                  <option value="phone">Phone</option>
+                  <option value="website">Website</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={submitStyles.label}>Status</label>
+                <select
+                  value={b.contact_status}
+                  onChange={(e) => setBrandField(idx, 'contact_status', e.target.value)}
+                  style={submitStyles.input}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="responded">Responded</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+            {brands.length > 1 && (
+              <button
+                type="button" style={submitStyles.removeLink}
+                onClick={() => setBrands((rows) => rows.filter((_, i) => i !== idx))}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button" style={submitStyles.addBtn}
+          onClick={() => setBrands((rows) => [...rows, emptyBrand()])}
+        >
+          + Add Brand
+        </button>
+      </div>
+
+      {/* Notes */}
+      <div style={styles.card}>
+        <div style={submitStyles.sectionTitle}>Notes</div>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anything that didn't fit in the rows above…"
+          style={submitStyles.textarea}
+        />
+      </div>
+
+      {/* Submit */}
+      <button type="submit" style={submitStyles.submitBtn(!canSubmit)} disabled={!canSubmit}>
+        {submitting ? (<><span style={submitStyles.spinner} /> Submitting…</>) : 'Submit Daily Log'}
+      </button>
+    </form>
   );
 }
 
@@ -191,6 +569,7 @@ export default function DWMPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState('');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -281,8 +660,32 @@ export default function DWMPage() {
             onRefetch={fetchAll}
           />
         )}
-        {activeTab === 'submit' && <SubmitTabPlaceholder />}
+        {activeTab === 'submit' && (
+          <SubmitDailyTab
+            onSubmitted={async () => {
+              setToast('Daily log submitted.');
+              setTimeout(() => setToast(''), 3000);
+              setActiveTab('logs');
+              await fetchAll();
+            }}
+          />
+        )}
       </div>
+
+      {/* Success toast — minimal inline so no extra dep. */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed', top: '20px', right: '20px',
+            padding: '12px 18px', borderRadius: '6px',
+            backgroundColor: '#112B1F', border: '1px solid #446644',
+            color: '#6BFF9F', fontSize: '14px', fontWeight: 500,
+            zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
