@@ -413,6 +413,19 @@ class SupplierInput(BaseModel):
     notes: Optional[str] = ""
 
 
+class SupplierUpdate(BaseModel):
+    """Partial update — all fields optional. The route applies
+    body.dict(exclude_unset=True) so omitting a field leaves the
+    column untouched. priority_score is re-derived whenever either
+    rate changes."""
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    contact: Optional[str] = None
+    response_rate: Optional[float] = None
+    approval_rate: Optional[float] = None
+    notes: Optional[str] = None
+
+
 class ScoutInput(BaseModel):
     asin: str
     title: Optional[str] = ""
@@ -1405,9 +1418,22 @@ def dashboard(user: User = Depends(tenant_session), db: Session = Depends(get_db
 
 
 # ── Suppliers ───────────────────────────────────────────────────────────────────
+def _supplier_to_dict(s: Supplier) -> dict:
+    """Single source of truth for the supplier wire shape. The `id`
+    field is required so the frontend can build /suppliers/{id} URLs
+    for PUT and DELETE."""
+    return {
+        "id": s.id,
+        "name": s.name, "brand": s.brand, "contact": s.contact,
+        "response_rate": s.response_rate, "approval_rate": s.approval_rate,
+        "priority_score": s.priority_score, "notes": s.notes,
+    }
+
+
 @app.post("/suppliers")
 def add_supplier(
     data: SupplierInput,
+    request: Request,
     user: User = Depends(tenant_session),
     db: Session = Depends(get_db),
 ):
@@ -1421,7 +1447,14 @@ def add_supplier(
     )
     db.add(supplier)
     db.commit()
-    return {"status": "saved", "supplier": {"name": supplier.name, "brand": supplier.brand}}
+    db.refresh(supplier)
+    record_audit(
+        db, request, user,
+        action="supplier.create", resource_type="supplier",
+        resource_id=supplier.id,
+        after=_supplier_to_dict(supplier),
+    )
+    return {"status": "saved", "supplier": _supplier_to_dict(supplier)}
 
 
 @app.get("/suppliers")
@@ -1429,15 +1462,78 @@ def list_suppliers(user: User = Depends(tenant_session), db: Session = Depends(g
     suppliers = get_org_scoped_query(db, user, Supplier).order_by(Supplier.priority_score.desc()).all()
     return {
         "count": len(suppliers),
-        "suppliers": [
-            {
-                "name": s.name, "brand": s.brand, "contact": s.contact,
-                "response_rate": s.response_rate, "approval_rate": s.approval_rate,
-                "priority_score": s.priority_score, "notes": s.notes,
-            }
-            for s in suppliers
-        ],
+        "suppliers": [_supplier_to_dict(s) for s in suppliers],
     }
+
+
+@app.put("/suppliers/{supplier_id}")
+def update_supplier(
+    supplier_id: int,
+    data: SupplierUpdate,
+    request: Request,
+    user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+):
+    """Partial update. Tenant-scoped — 404 if the row is in another org.
+    priority_score is recomputed when either rate changes so we don't
+    leave a stale-derived value behind."""
+    supplier = db.query(Supplier).filter(
+        Supplier.id == supplier_id,
+        Supplier.org_id == user.org_id,
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found.")
+
+    before = _supplier_to_dict(supplier)
+    updates = data.dict(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(supplier, field, value)
+
+    # Re-derive priority_score if either rate was touched.
+    if "response_rate" in updates or "approval_rate" in updates:
+        rr = supplier.response_rate or 0
+        ar = supplier.approval_rate or 0
+        supplier.priority_score = round(rr * 0.5 + ar * 0.5, 2)
+
+    db.commit()
+    db.refresh(supplier)
+    record_audit(
+        db, request, user,
+        action="supplier.update", resource_type="supplier",
+        resource_id=supplier.id,
+        before=before,
+        after=_supplier_to_dict(supplier),
+    )
+    return {"status": "updated", "supplier": _supplier_to_dict(supplier)}
+
+
+@app.delete("/suppliers/{supplier_id}")
+def delete_supplier(
+    supplier_id: int,
+    request: Request,
+    user: User = Depends(tenant_session),
+    db: Session = Depends(get_db),
+):
+    """Tenant-scoped — 404 if the row is in another org. before-state is
+    captured BEFORE the delete for the audit trail."""
+    supplier = db.query(Supplier).filter(
+        Supplier.id == supplier_id,
+        Supplier.org_id == user.org_id,
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found.")
+
+    before = _supplier_to_dict(supplier)
+    deleted_id = supplier.id
+    db.delete(supplier)
+    db.commit()
+    record_audit(
+        db, request, user,
+        action="supplier.delete", resource_type="supplier",
+        resource_id=deleted_id,
+        before=before,
+    )
+    return {"removed": 1}
 
 
 # ── Leaderboard ─────────────────────────────────────────────────────────────────
