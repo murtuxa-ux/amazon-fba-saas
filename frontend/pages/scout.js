@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
+import { adaptScoutResult } from '../lib/scoutAdapter';
 
 const ScoutPage = () => {
   const [activeTab, setActiveTab] = useState('single');
@@ -105,7 +106,12 @@ const ScoutPage = () => {
       // matching by `asin` presence is a robust unwrap.
       const json = await response.json();
       const data = (json && json.asin) ? json : (json?.data || json?.result || json);
-      setSingleResults(data);
+      // L2 (Sprint 3 late): backend returns Amazon-domain field names
+      // (current_price, bsr, fba_score, total_sellers, reviews). The
+      // render block reads legacy alias names (price, bsr_rank, score,
+      // number_of_sellers, ratings_count). Adapter is the single bridge
+      // — see frontend/lib/scoutAdapter.js + CLAUDE.md §8.
+      setSingleResults(adaptScoutResult(data));
     } catch (error) {
       if (error.name === 'AbortError') {
         setSingleError('Lookup timed out after 20 seconds. Keepa may be slow — please try again.');
@@ -207,7 +213,10 @@ const ScoutPage = () => {
 
           if (response.ok) {
             const data = await response.json();
-            results.push(data);
+            // L2: same backend-vs-frontend field-name bridge as the
+            // single-scout path. The bulk results table reads the
+            // legacy alias names, so adapt before pushing.
+            results.push(adaptScoutResult(data));
           }
         } catch (error) {
           console.error(`Failed to scout ${asinList[i]}:`, error);

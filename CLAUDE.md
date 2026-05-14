@@ -122,6 +122,13 @@ Design rules:
 - Commits: present-tense, scoped ("ai: add product radar scoring service")
 - Before commit: backend changes -> python -m pytest; frontend changes -> npm run build
 - After deploy: verify Railway logs, check affected page on Vercel URL
+- **Scout field-name bridge:** Keepa scout responses use Amazon-domain
+  names (`current_price`, `bsr`, `fba_score`, `total_sellers`, `reviews`);
+  frontend display reads the legacy alias names (`price`, `bsr_rank`,
+  `score`, `number_of_sellers`, `ratings_count`). The adapter in
+  `frontend/lib/scoutAdapter.js` is the ONLY acceptable bridge — do
+  not add the snake_case names to the display block, do not add the
+  alias names to the backend response.
 
 ---
 
