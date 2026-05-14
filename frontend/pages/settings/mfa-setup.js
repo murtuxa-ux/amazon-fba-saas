@@ -86,6 +86,7 @@ export default function MfaSetupPage() {
   const [loading, setLoading] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [savedAck, setSavedAck] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Step 1 — fetch the secret + QR on mount
   useEffect(() => {
@@ -196,11 +197,37 @@ export default function MfaSetupPage() {
               {secret && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 6 }}>Or enter this secret manually:</div>
-                  <div style={S.secret}>{secret}</div>
+                  <div
+                    style={{ ...S.secret, cursor: 'pointer' }}
+                    onClick={async () => {
+                      try {
+                        if (navigator.clipboard) await navigator.clipboard.writeText(secret);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      } catch {}
+                    }}
+                    title="Click to copy"
+                  >
+                    {secret}
+                  </div>
+                  <div style={{ fontSize: 11, color: copied ? COLORS.green : COLORS.textMuted, marginTop: 4, height: 14 }}>
+                    {copied ? '✓ Copied' : 'Click the secret to copy'}
+                  </div>
                 </div>
               )}
               <div>
-                <button style={S.btn(!qr)} onClick={() => setStep(2)} disabled={!qr}>
+                {/* BUG (Sprint 1.5 hotfix): manual-key entry is a fully
+                    valid enrollment path. Gating Next on !qr alone left
+                    users stranded when the QR data URI didn't populate
+                    (Strict-mode effect-race / image proxy / network
+                    blip). Both QR scan and manual entry seed the same
+                    secret into the authenticator app; Step 2 verifies
+                    a live code regardless of how it got there. */}
+                <button
+                  style={S.btn(!secret && !qr)}
+                  onClick={() => setStep(2)}
+                  disabled={!secret && !qr}
+                >
                   Next: Verify code →
                 </button>
               </div>
