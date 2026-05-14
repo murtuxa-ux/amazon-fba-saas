@@ -19,3 +19,8 @@ structlog>=24.0.0
 slowapi>=0.1.9
 numpy>=1.24.0
 statsmodels>=0.14.0
+# Phase B MFA (SP-API attestation). pyotp = RFC 6238 TOTP / RFC 4226 HOTP.
+# qrcode renders the otpauth:// URL as a PNG data URI so the enrollment
+# wizard can display it without a frontend QR lib.
+pyotp==2.9.0
+qrcode[pil]==7.4.2

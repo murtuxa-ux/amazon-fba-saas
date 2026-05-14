@@ -1,8 +1,177 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
 import PasswordStrength, { passwordValid } from '../components/PasswordStrength';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// MFA Phase B inline component. Loads /auth/mfa/status, surfaces the
+// enrolled state with a badge + actions. Set Up routes to the
+// dedicated /settings/mfa-setup wizard. Disable + Regenerate prompt
+// for the two factors (current password + 6-digit code).
+function MfaSection({ token, BASE_URL, showToast }) {
+  const [status, setStatus] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [showDisablePrompt, setShowDisablePrompt] = React.useState(false);
+  const [disablePassword, setDisablePassword] = React.useState('');
+  const [disableCode, setDisableCode] = React.useState('');
+  const [disableErr, setDisableErr] = React.useState('');
+  const [disabling, setDisabling] = React.useState(false);
+
+  const fetchStatus = React.useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/auth/mfa/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+      }
+    } catch {}
+    setLoading(false);
+  }, [token, BASE_URL]);
+
+  React.useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  const disable = async () => {
+    setDisableErr('');
+    if (!disablePassword || !disableCode) {
+      setDisableErr('Both password and code are required.');
+      return;
+    }
+    setDisabling(true);
+    try {
+      const res = await fetch(`${BASE_URL}/auth/mfa/disable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: disablePassword, code: disableCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDisableErr(data.detail || 'Failed to disable MFA.');
+      } else {
+        setShowDisablePrompt(false);
+        setDisablePassword(''); setDisableCode('');
+        showToast && showToast('MFA disabled.', 'success');
+        await fetchStatus();
+      }
+    } catch {
+      setDisableErr('Connection error.');
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ color: '#888', fontSize: 13 }}>Loading MFA status…</div>;
+  }
+
+  const enrolled = !!(status && status.enrolled);
+  const codesLeft = (status && status.recovery_codes_remaining) || 0;
+  const lastUsed = status && status.last_used_at;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <span style={{
+          display: 'inline-block', padding: '4px 12px', borderRadius: 999,
+          fontSize: 12, fontWeight: 700,
+          background: enrolled ? 'rgba(34,197,94,0.15)' : '#3F2F1B',
+          color: enrolled ? '#22C55E' : '#FFD000',
+          border: `1px solid ${enrolled ? '#22C55E' : '#FFD000'}`,
+        }}>
+          {enrolled ? 'MFA: Enabled ✓' : 'MFA: Not enabled'}
+        </span>
+      </div>
+
+      {!enrolled ? (
+        <div>
+          <p style={{ fontSize: 13, color: '#A0A0A0', margin: '0 0 12px' }}>
+            Add a second factor (TOTP via Google Authenticator, 1Password, Authy, etc.) to keep
+            your data secure. Required for owner and admin accounts before launch.
+          </p>
+          <Link
+            href="/settings/mfa-setup"
+            style={{
+              display: 'inline-block', padding: '10px 18px', fontSize: 14, fontWeight: 700,
+              background: '#FFD000', color: '#1A1A1A', borderRadius: 6, textDecoration: 'none',
+            }}
+          >
+            Set up MFA →
+          </Link>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 13, color: '#A0A0A0', marginBottom: 4 }}>
+            Last used: {lastUsed || 'Never'}
+          </div>
+          <div style={{ fontSize: 13, color: '#A0A0A0', marginBottom: 12 }}>
+            {codesLeft} recovery codes remaining.
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDisablePrompt((v) => !v)}
+            style={{
+              padding: '8px 14px', fontSize: 13, fontWeight: 600,
+              background: 'transparent', color: '#EF4444', border: '1px solid #EF4444',
+              borderRadius: 6, cursor: 'pointer',
+            }}
+          >
+            Disable MFA
+          </button>
+
+          {showDisablePrompt && (
+            <div style={{
+              marginTop: 16, padding: 16, background: '#0A0A0A',
+              border: '1px solid #1E1E1E', borderRadius: 6,
+            }}>
+              <div style={{ fontSize: 13, color: '#A0A0A0', marginBottom: 12 }}>
+                For safety, disabling MFA requires both your current password AND a current
+                authenticator code.
+              </div>
+              <input
+                type="password" placeholder="Current password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                style={{
+                  width: '100%', padding: 10, marginBottom: 8,
+                  background: '#FFFDE7', color: '#1F3A8A', border: '1px solid #E5E5E5',
+                  borderRadius: 4, fontSize: 14, boxSizing: 'border-box',
+                }}
+              />
+              <input
+                type="text" inputMode="numeric" maxLength={8}
+                placeholder="6-digit code or recovery code"
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value)}
+                style={{
+                  width: '100%', padding: 10, marginBottom: 8,
+                  background: '#FFFDE7', color: '#1F3A8A', border: '1px solid #E5E5E5',
+                  borderRadius: 4, fontSize: 14, boxSizing: 'border-box',
+                }}
+              />
+              {disableErr && (
+                <div style={{ color: '#EF4444', fontSize: 12, marginBottom: 8 }}>{disableErr}</div>
+              )}
+              <button
+                type="button" onClick={disable} disabled={disabling}
+                style={{
+                  padding: '8px 14px', fontSize: 13, fontWeight: 700,
+                  background: '#EF4444', color: '#FFF', border: 'none', borderRadius: 6,
+                  cursor: disabling ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {disabling ? 'Disabling…' : 'Confirm disable'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const styles = {
   outerContainer: {
@@ -1435,35 +1604,15 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* MFA Phase B: real TOTP enrollment. The previous
+                      stub POSTed /users/2fa-toggle which never existed
+                      backend-side. Now: Set Up MFA → /settings/mfa-setup
+                      wizard; once enrolled, show status + Disable. */}
                   <div style={{ borderTop: '1px solid #1E1E1E', paddingTop: '24px' }}>
                     <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '16px' }}>
                       Two-Factor Authentication
                     </h3>
-                    <div style={styles.switchContainer}>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#FFFFFF' }}>
-                          Enable 2FA
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#888888' }}>
-                          Add an extra layer of security
-                        </div>
-                      </div>
-                      <button
-                        style={{
-                          ...styles.toggleSwitch,
-                          ...(twoFactorEnabled ? styles.toggleSwitchActive : {}),
-                        }}
-                        onClick={toggleTwoFactor}
-                        disabled={loading}
-                      >
-                        <div
-                          style={{
-                            ...styles.toggleSlider,
-                            ...(twoFactorEnabled ? styles.toggleSliderActive : {}),
-                          }}
-                        />
-                      </button>
-                    </div>
+                    <MfaSection token={token} BASE_URL={BASE_URL} showToast={showToast} />
                   </div>
                 </div>
               </div>

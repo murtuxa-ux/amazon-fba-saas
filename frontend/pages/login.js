@@ -235,7 +235,15 @@ export default function LoginPage() {
       //
       // Backend accepts either username or email under the same field;
       // we pass the form's email value as the identifier.
-      await authLogin(submittedEmail, submittedPassword);
+      const result = await authLogin(submittedEmail, submittedPassword);
+      // MFA Phase B: if the account is MFA-enrolled, backend short-
+      // circuits with {requires_mfa: true}. AuthContext.login stashes
+      // the challenge token in sessionStorage and returns the marker;
+      // we navigate to the dedicated challenge page.
+      if (result && result.requires_mfa) {
+        router.push('/login/mfa');
+        return;
+      }
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => {
         router.push('/');
@@ -250,6 +258,17 @@ export default function LoginPage() {
           pathname: '/change-password',
           query: { forced: 'true', username: submittedEmail },
         });
+        return;
+      }
+      // MFA enrollment required for owners (when MFA_OWNER_ENFORCEMENT_ENABLED
+      // is on and the user hasn't enrolled). Frontend just bounces them
+      // to /settings/mfa-setup after a fresh non-MFA login on a temp
+      // session — for v1, surface the message and let the user retry
+      // once MFA is enabled. We don't have a way to land on /settings
+      // without a session.
+      if (err && err.message === 'MFA_ENROLLMENT_REQUIRED') {
+        setError('MFA enrollment is required for your account. Contact your admin to disable enforcement temporarily, or use a recovery code if available.');
+        setLoading(false);
         return;
       }
       setError(err.message || 'Login failed. Please check your credentials.');

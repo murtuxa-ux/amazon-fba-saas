@@ -99,6 +99,17 @@ class Settings(BaseSettings):
     # requirements.
     PASSWORD_MAX_AGE_DAYS: int = 365
 
+    # MFA Phase B. When True the backend rejects owner-role logins from
+    # users whose mfa_enrolled_at IS NULL — the frontend redirects them
+    # to /settings/mfa-setup and they cannot navigate elsewhere until
+    # enrolled. Defaults False so the PR can deploy without locking the
+    # owner out before they enroll. Flip to True via Railway env var
+    # AFTER Murtaza completes his own enrollment. Admin role enforcement
+    # rolls out 2026-05-25 per the dispatch.
+    MFA_OWNER_ENFORCEMENT_ENABLED: bool = False
+    MFA_CHALLENGE_TOKEN_MINUTES: int = 5
+    MFA_ISSUER_NAME: str = "EcomEra"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
