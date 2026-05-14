@@ -103,7 +103,8 @@ export default function ProfitCalculator() {
     <div style={S.page}>
       <Sidebar />
       <main style={S.main}>
-        <div style={S.title}>Wholesale Profit Calculator</div>
+        {/* BUG-28 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+        <h1 style={{ ...S.title, margin: 0 }}>Wholesale Profit Calculator</h1>
         <div style={S.subtitle}>Calculate ROI, margins, and profitability for wholesale products</div>
 
         <div style={S.grid}>

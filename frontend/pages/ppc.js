@@ -176,7 +176,8 @@ export default function PPCActionPlan() {
     <div style={S.page}>
       <Sidebar />
       <main style={S.main}>
-        <div style={S.title}>PPC Action Plan Engine</div>
+        {/* BUG-28 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+        <h1 style={{ ...S.title, margin: 0 }}>PPC Action Plan Engine</h1>
         <div style={S.subtitle}>Automated bid optimization, keyword harvesting & negative management</div>
 
         <div style={S.tabs}>
