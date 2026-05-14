@@ -162,7 +162,8 @@ export default function BuyBoxTracker() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0A0A0A' }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#0A0A0A' }}>
+      {/* BUG-33 Sprint 2: marginLeft offsets the position:fixed Sidebar. */}
+      <main style={{ flex: 1, marginLeft: '250px', padding: '24px', overflowY: 'auto', backgroundColor: '#0A0A0A' }}>
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#FFFFFF', margin: '0 0 8px 0' }}>

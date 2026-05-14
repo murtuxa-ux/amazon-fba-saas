@@ -64,7 +64,8 @@ export default function ProfitCalculator() {
 
   const S = {
     page: { display: "flex", minHeight: "100vh", backgroundColor: T.bg, color: T.text, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-    main: { flex: 1, padding: "32px", overflowY: "auto" },
+    // BUG-27 Sprint 2: marginLeft offsets the position:fixed Sidebar.
+    main: { flex: 1, marginLeft: "250px", padding: "32px", overflowY: "auto" },
     title: { fontSize: "24px", fontWeight: 700, marginBottom: "8px" },
     subtitle: { fontSize: "14px", color: T.textSec, marginBottom: "32px" },
     grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px" },
