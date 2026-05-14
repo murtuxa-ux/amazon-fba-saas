@@ -509,7 +509,8 @@ export default function ReportsPage() {
       <Sidebar />
       <div style={styles.container}>
         <div style={styles.header}>
-          <div style={styles.headerTitle}>Reports</div>
+          {/* BUG-28 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+          <h1 style={{ ...styles.headerTitle, margin: 0 }}>Reports</h1>
           <div style={styles.headerSubtitle}>Generate, schedule, and manage business reports</div>
         </div>
 
