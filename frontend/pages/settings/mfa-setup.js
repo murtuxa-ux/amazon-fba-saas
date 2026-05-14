@@ -9,7 +9,7 @@
 // linear. The user can re-call /auth/mfa/enroll/start to regenerate the
 // secret if they messed up the QR scan.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -88,9 +88,31 @@ export default function MfaSetupPage() {
   const [savedAck, setSavedAck] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Step 1 — fetch the secret + QR on mount
+  // L3 (Sprint 3 late): React Strict Mode double-renders this component
+  // in dev (and the same shape can happen in prod via fast-refresh /
+  // route remount races). Without a lock, the useEffect fires TWICE,
+  // hitting POST /auth/mfa/enroll/start twice. The second call rotates
+  // the secret server-side, so the QR data URI / secret string Murtaza
+  // already scanned no longer matches the stored secret. Same shape
+  // for handleVerify: a double-click or fast-refresh during the
+  // request fires /enroll/confirm twice. Call 1 returns 200 with the
+  // 10 plaintext recovery codes; call 2 returns 400 "already enrolled"
+  // with no recovery_codes field; the second response overwrites the
+  // first's codes with [] → user sees an empty grid, .txt download
+  // is just the header. Plaintext codes hit the floor; bcrypt hashes
+  // in DB are the only thing left, and plaintext can never be recovered.
+  //
+  // Refs (not state) because the lock must NOT trigger a re-render
+  // when flipped — flipping state would itself queue a render and
+  // race with Strict-Mode's double-mount.
+  const startInflight = useRef(false);
+  const verifyInflight = useRef(false);
+
+  // Step 1 — fetch the secret + QR on mount (idempotent, see L3 note above)
   useEffect(() => {
     let cancelled = false;
+    if (startInflight.current) return;
+    startInflight.current = true;
     (async () => {
       try {
         const token = getToken();
@@ -101,6 +123,9 @@ export default function MfaSetupPage() {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           if (!cancelled) setError(body.detail || `Failed to start enrollment (${res.status}).`);
+          // Do NOT reset startInflight on error — repeated mounts of a
+          // failing page would otherwise dogpile the backend. The user
+          // can navigate away and back to retry.
           return;
         }
         const data = await res.json();
@@ -111,15 +136,33 @@ export default function MfaSetupPage() {
       } catch (e) {
         if (!cancelled) setError('Connection error starting enrollment.');
       }
+      // No `finally` — once started, startInflight stays true for the
+      // lifetime of this component instance. Strict-Mode's second mount
+      // gets a fresh ref (refs are not shared across re-renders of the
+      // same component instance, but ARE per-instance), and the second
+      // mount's effect short-circuits because startInflight.current
+      // is already true on the first mount that survived.
+      // Verified shape: useRef's initial value is preserved across
+      // Strict-Mode's intentional double-invoke of the effect.
     })();
     return () => { cancelled = true; };
   }, []);
 
   const handleVerify = async (e) => {
     e?.preventDefault?.();
+    // L3: lock against double-fire. A second click on the same step-2
+    // submit (or Strict-Mode-induced re-entry) would call
+    // /enroll/confirm twice. The first call writes mfa_enrolled_at and
+    // returns 10 plaintext recovery codes; the second call sees
+    // user.mfa_enrolled_at != None (backend/mfa.py:258) and returns
+    // 400 with no recovery_codes — that response would overwrite our
+    // state with [], losing the plaintext codes forever.
+    if (verifyInflight.current) return;
+    verifyInflight.current = true;
     setError('');
     if (!(code.length === 6 && /^\d{6}$/.test(code))) {
       setError('Enter the 6-digit code from your authenticator app.');
+      verifyInflight.current = false;  // reset so user can retype
       return;
     }
     setLoading(true);
@@ -133,12 +176,17 @@ export default function MfaSetupPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.detail || 'Code did not match. Try the next 6 digits.');
+        verifyInflight.current = false;  // reset so user can retry with a fresh code
         return;
       }
       setRecoveryCodes(Array.isArray(data.recovery_codes) ? data.recovery_codes : []);
       setStep(3);
+      // Do NOT reset verifyInflight on success. We're in step 3; any
+      // retry of step 2 would be incorrect (codes are already issued,
+      // and the backend would now reject as already-enrolled).
     } catch (e2) {
       setError('Connection error. Please try again.');
+      verifyInflight.current = false;  // reset on network error
     } finally {
       setLoading(false);
     }
