@@ -14,12 +14,20 @@ if (typeof window !== "undefined") {
   installCamelCaseFetch();
 }
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/landing", "/pricing", "/onboarding", "/portal"];
+// BUG-36/37/38 (Sprint 2): /pricing /landing /onboarding are
+// "marketing-style" pages embedded in the app. They used to live in
+// PUBLIC_ROUTES, which redirected AUTHENTICATED users to /. The UX
+// test caught this — visiting /pricing while logged in bounced back
+// to the dashboard. Moving them to BYPASS_AUTH_ROUTES so both signed-
+// in and signed-out users see the same content with no redirect. Once
+// the public marketing site at ecomera.us ships (separate dispatch),
+// these will flip to client-side 301 redirects to ecomera.us/<route>.
+const PUBLIC_ROUTES = ["/login", "/signup", "/portal"];
 // /404 (and /_error) bypass AuthGuard entirely. They render for both auth
 // states without redirect — sending an unauthenticated visitor from a 404
 // to /login swallows the bad URL, and sending an authenticated user to /
 // hides the fact that the path they reached doesn't exist.
-const BYPASS_AUTH_ROUTES = ["/404", "/_error"];
+const BYPASS_AUTH_ROUTES = ["/404", "/_error", "/landing", "/pricing", "/onboarding"];
 
 function AuthGuard({ children }) {
   const { isAuthenticated, loading } = useAuth();

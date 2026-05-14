@@ -14,7 +14,11 @@ function authHeaders() {
 
 const S = {
   page: { display: "flex", minHeight: "100vh", background: "#0A0A0A", color: "#E0E0E0", fontFamily: "'Inter', system-ui, sans-serif" },
-  main: { flex: 1, padding: "2rem", overflowY: "auto" },
+  // BUG-26 Sprint 2: marginLeft offsets the position:fixed Sidebar
+  // (250px wide). Without this the H1 + tab bar render behind the
+  // sidebar on first paint. Matches the convention used by /clients,
+  // /suppliers, /dwm, etc.
+  main: { flex: 1, marginLeft: "250px", padding: "2rem", overflowY: "auto" },
   title: { fontSize: "1.6rem", fontWeight: 800, color: "#FFD700", marginBottom: "0.25rem" },
   subtitle: { fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" },
   card: { background: "#111111", border: "1px solid #1E1E1E", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.25rem" },
@@ -172,7 +176,8 @@ export default function PPCActionPlan() {
     <div style={S.page}>
       <Sidebar />
       <main style={S.main}>
-        <div style={S.title}>PPC Action Plan Engine</div>
+        {/* BUG-28 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+        <h1 style={{ ...S.title, margin: 0 }}>PPC Action Plan Engine</h1>
         <div style={S.subtitle}>Automated bid optimization, keyword harvesting & negative management</div>
 
         <div style={S.tabs}>

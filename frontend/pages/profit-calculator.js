@@ -64,7 +64,8 @@ export default function ProfitCalculator() {
 
   const S = {
     page: { display: "flex", minHeight: "100vh", backgroundColor: T.bg, color: T.text, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-    main: { flex: 1, padding: "32px", overflowY: "auto" },
+    // BUG-27 Sprint 2: marginLeft offsets the position:fixed Sidebar.
+    main: { flex: 1, marginLeft: "250px", padding: "32px", overflowY: "auto" },
     title: { fontSize: "24px", fontWeight: 700, marginBottom: "8px" },
     subtitle: { fontSize: "14px", color: T.textSec, marginBottom: "32px" },
     grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px" },
@@ -102,7 +103,8 @@ export default function ProfitCalculator() {
     <div style={S.page}>
       <Sidebar />
       <main style={S.main}>
-        <div style={S.title}>Wholesale Profit Calculator</div>
+        {/* BUG-28 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+        <h1 style={{ ...S.title, margin: 0 }}>Wholesale Profit Calculator</h1>
         <div style={S.subtitle}>Calculate ROI, margins, and profitability for wholesale products</div>
 
         <div style={S.grid}>

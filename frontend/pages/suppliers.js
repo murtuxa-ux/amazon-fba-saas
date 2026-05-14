@@ -206,7 +206,8 @@ export default function SuppliersPage() {
       <Sidebar />
       <div style={styles.container}>
         <div style={styles.header}>
-          <div style={styles.title}>Suppliers</div>
+          {/* BUG-24 Sprint 3: was <div>; bumped to <h1> for a11y / SEO. */}
+          <h1 style={{ ...styles.title, margin: 0 }}>Suppliers</h1>
           <div style={styles.subtitle}>Wholesale and brand suppliers, prioritized by response + approval rates</div>
         </div>
 

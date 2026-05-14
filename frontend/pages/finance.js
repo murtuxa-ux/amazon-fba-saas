@@ -329,9 +329,13 @@ function PnLStatementsTab() {
   }, []);
 
   useEffect(() => {
-    if (selectedClient) {
-      loadPnLStatements();
-    }
+    // BUG-13 Sprint 2: render P&Ls on first mount too — the previous
+    // gate "if (selectedClient)" meant the list never loaded until a
+    // client was picked, which combined with BUG-10's empty dropdown
+    // produced a page that looked permanently empty. With the "All
+    // clients" default (selectedClient === '') the load fires
+    // immediately and the list shows whatever exists org-wide.
+    loadPnLStatements();
   }, [selectedClient]);
 
   const loadClients = async () => {
@@ -344,13 +348,21 @@ function PnLStatementsTab() {
       ? data.clients
       : (Array.isArray(data) ? data : []);
     setClients(list);
-    if (list.length > 0) setSelectedClient(list[0].id);
+    // BUG-13 Sprint 2: default to "All clients" view (selectedClient '')
+    // instead of pre-selecting the first row. The list endpoint accepts
+    // an absent client_id and returns the full org-scoped list, which
+    // is what /finance should show on first paint.
   };
 
   const loadPnLStatements = async () => {
-    if (!selectedClient) return;
     setLoading(true);
-    const data = await fetchAPI(`/client-pnl?client_id=${selectedClient}`);
+    // BUG-13: omit the client_id query param entirely when "All clients"
+    // is selected. The backend (client_pnl.py:374) treats missing
+    // client_id as "no filter".
+    const path = selectedClient
+      ? `/client-pnl?client_id=${selectedClient}`
+      : '/client-pnl';
+    const data = await fetchAPI(path);
     setPnlStatements(Array.isArray(data) ? data : []);
     setLoading(false);
   };
@@ -364,8 +376,12 @@ function PnLStatementsTab() {
     // validates ge/le bounds via Pydantic). The <input type="number">
     // surfaces strings — parseInt before sending so a user who types
     // "5" doesn't produce {month: "5", year: 5} server-side.
+    // BUG-14 Sprint 2: client_id now comes from the modal's own
+    // formData.clientId (selected inside the modal) so the user can
+    // create a P&L for any client without changing the page-level
+    // "All clients" filter.
     const payload = {
-      client_id: selectedClient,
+      client_id: parseInt(formData.clientId, 10) || selectedClient || 0,
       period: formData.period,
       month: parseInt(formData.month, 10),
       year: parseInt(formData.year, 10),
@@ -429,7 +445,9 @@ function PnLStatementsTab() {
             onChange={(e) => setSelectedClient(e.target.value)}
             style={styles.select}
           >
-            <option value="">Select a client</option>
+            {/* BUG-13: "All clients" is the default view (empty value
+                produces no client_id filter on the list endpoint). */}
+            <option value="">All clients</option>
             {clients.map(client => (
               <option key={client.id} value={client.id}>
                 {client.name}
@@ -530,15 +548,23 @@ function PnLStatementsTab() {
           onClose={() => setShowModal(false)}
           onSubmit={handleCreatePnL}
           period={period}
+          clients={clients}
+          initialClientId={selectedClient || (clients[0] && clients[0].id) || ''}
         />
       )}
     </div>
   );
 }
 
-function CreatePnLModal({ onClose, onSubmit, period }) {
+function CreatePnLModal({ onClose, onSubmit, period, clients = [], initialClientId = '' }) {
+  // BUG-14 Sprint 2: inline validation. The previous version showed
+  // a generic "Failed to create" on submit, even for client-side
+  // missing-fields. Now: per-field bounds + required-client + Save
+  // disabled until valid. Bounds mirror the BUG-11 backend Pydantic
+  // schema: month 1-12, year 2000-2100, money fields >= 0.
   const [formData, setFormData] = useState({
     period,
+    clientId: initialClientId,
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
     revenue: 0,
@@ -552,9 +578,24 @@ function CreatePnLModal({ onClose, onSubmit, period }) {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'period' ? value : (name === 'month' || name === 'year' ? parseInt(value) : parseFloat(value) || 0),
+      [name]:
+        name === 'period' || name === 'clientId'
+          ? value
+          : (name === 'month' || name === 'year'
+              ? parseInt(value, 10)
+              : parseFloat(value) || 0),
     }));
   };
+
+  // Validation (mirrors backend bounds — BUG-11 fix)
+  const errors = {};
+  if (!formData.clientId) errors.clientId = 'Please select a client.';
+  if (!(formData.month >= 1 && formData.month <= 12)) errors.month = 'Month must be 1–12.';
+  if (!(formData.year >= 2000 && formData.year <= 2100)) errors.year = 'Year must be 2000–2100.';
+  ['revenue', 'cogs', 'adSpend', 'fbaFees', 'otherExpenses'].forEach((k) => {
+    if (Number.isNaN(formData[k]) || formData[k] < 0) errors[k] = 'Must be ≥ 0.';
+  });
+  const isValid = Object.keys(errors).length === 0;
 
   const grossProfit = formData.revenue - formData.cogs;
   const netProfit = grossProfit - formData.adSpend - formData.fbaFees - formData.otherExpenses;
@@ -564,6 +605,24 @@ function CreatePnLModal({ onClose, onSubmit, period }) {
     <div style={styles.modalOverlay}>
       <div style={styles.modal}>
         <h2 style={styles.modalTitle}>Create P&L Statement</h2>
+
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Client *</label>
+          <select
+            name="clientId"
+            value={formData.clientId}
+            onChange={handleChange}
+            style={styles.select}
+          >
+            <option value="">Select a client</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          {errors.clientId && (
+            <div style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>{errors.clientId}</div>
+          )}
+        </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Period</label>
@@ -694,8 +753,13 @@ function CreatePnLModal({ onClose, onSubmit, period }) {
 
         <div style={styles.formActions}>
           <button
-            onClick={() => onSubmit(formData)}
-            style={{ ...styles.button, flex: 1 }}
+            disabled={!isValid}
+            onClick={() => isValid && onSubmit(formData)}
+            style={{
+              ...styles.button,
+              flex: 1,
+              ...(isValid ? {} : { backgroundColor: '#666', cursor: 'not-allowed', opacity: 0.6 }),
+            }}
           >
             Save P&L
           </button>

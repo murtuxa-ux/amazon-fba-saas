@@ -580,8 +580,13 @@ def delete_pnl(
 @router.get("/client/{client_id}/summary", response_model=ClientPnLSummary)
 def get_client_pnl_summary(
     client_id: int,
+    # BUG-03 Sprint 2: auth check resolves BEFORE the DB session is
+    # opened so a bad token short-circuits without paying the cold
+    # connection cost. FastAPI resolves Depends in declaration order;
+    # the prior signature opened get_db first and then auth'd, which
+    # on cold-pool starts cost ~7s before the 401 was returned.
+    org_id: int = Depends(get_current_org),
     db: Session = Depends(get_db),
-    org_id: int = Depends(get_current_org)
 ):
     """
     Get client's P&L over all months with totals and trends.
